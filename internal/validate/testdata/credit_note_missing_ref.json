@@ -1,0 +1,36 @@
+{
+  "number": "CN-2024-BAD",
+  "issue_date": "2024-06-01",
+  "type_code": "381",
+  "currency": "EUR",
+  "buyer_reference": "PO-1",
+  "seller": {
+    "name": "Seller Co",
+    "vat_id": "ESB99999999",
+    "address": { "country": "ES" }
+  },
+  "buyer": {
+    "name": "Buyer Co",
+    "address": { "country": "DE" }
+  },
+  "vat_breakdown": [
+    { "category": "S", "rate": 21, "taxable_amount": 100.00, "tax_amount": 21.00 }
+  ],
+  "totals": {
+    "line_net_total": 100.00,
+    "tax_exclusive_amount": 100.00,
+    "tax_amount": 21.00,
+    "tax_inclusive_amount": 121.00,
+    "payable_amount": 121.00
+  },
+  "lines": [
+    {
+      "id": "1",
+      "quantity": 1, "quantity_unit": "C62",
+      "net_amount": 100.00,
+      "vat": { "category": "S", "rate": 21 },
+      "item": { "name": "Widget" },
+      "price": { "amount": 100.00 }
+    }
+  ]
+}
