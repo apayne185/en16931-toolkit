@@ -1,0 +1,91 @@
+{
+  "number": "INV-2024-001",
+  "issue_date": "2024-06-01",
+  "due_date": "2024-06-30",
+  "type_code": "380",
+  "currency": "EUR",
+  "buyer_reference": "PO-98765",
+  "seller": {
+    "name": "Acme Software SL",
+    "vat_id": "ESB12345678",
+    "legal_id": "B12345678",
+    "address": {
+      "street": "Calle Gran Vía 1",
+      "city": "Madrid",
+      "post_code": "28013",
+      "country": "ES"
+    },
+    "contact_name": "Facturación",
+    "contact_email": "billing@acme.es"
+  },
+  "buyer": {
+    "name": "DeepL SE",
+    "vat_id": "DE123456789",
+    "legal_id": "HRB 12345",
+    "address": {
+      "street": "Maarweg 165",
+      "city": "Cologne",
+      "post_code": "50825",
+      "country": "DE"
+    }
+  },
+  "payment_means": [
+    {
+      "type_code": "58",
+      "account_id": "ES91 2100 0418 4502 0005 1332",
+      "account_name": "Acme Software SL",
+      "service_provider_id": "CAIXESBBXXX",
+      "remittance_info": "INV-2024-001"
+    }
+  ],
+  "vat_breakdown": [
+    {
+      "category": "S",
+      "rate": 21,
+      "taxable_amount": 2000.00,
+      "tax_amount": 420.00
+    }
+  ],
+  "totals": {
+    "line_net_total": 2000.00,
+    "tax_exclusive_amount": 2000.00,
+    "tax_amount": 420.00,
+    "tax_inclusive_amount": 2420.00,
+    "payable_amount": 2420.00
+  },
+  "lines": [
+    {
+      "id": "1",
+      "quantity": 5,
+      "quantity_unit": "MON",
+      "net_amount": 1000.00,
+      "vat": { "category": "S", "rate": 21 },
+      "item": {
+        "name": "API Platform Subscription — Standard",
+        "description": "Monthly SaaS subscription, January–May 2024",
+        "seller_id": "SKU-API-STD"
+      },
+      "price": {
+        "amount": 200.00,
+        "base_quantity": 1,
+        "base_quantity_unit": "MON"
+      }
+    },
+    {
+      "id": "2",
+      "quantity": 10,
+      "quantity_unit": "HUR",
+      "net_amount": 1000.00,
+      "vat": { "category": "S", "rate": 21 },
+      "item": {
+        "name": "Professional Services — Integration Setup",
+        "description": "Custom integration development and onboarding support"
+      },
+      "price": {
+        "amount": 100.00,
+        "base_quantity": 1,
+        "base_quantity_unit": "HUR"
+      }
+    }
+  ]
+}
