@@ -16,6 +16,7 @@ import (
 
 	"github.com/apayne185/en16931-toolkit/internal/es"
 	"github.com/apayne185/en16931-toolkit/internal/model"
+	"github.com/apayne185/en16931-toolkit/internal/server"
 	"github.com/apayne185/en16931-toolkit/internal/ubl"
 	"github.com/apayne185/en16931-toolkit/internal/validate"
 )
@@ -26,17 +27,23 @@ Usage:
   en16931 validate  <invoice.json>              Check EN 16931 business rules
   en16931 render    <invoice.json> [-o file]    Render to UBL 2.1 XML
   en16931 verifactu <invoice.json> [flags]      Apply Spain Veri*Factu CIUS + compute chain hash
+  en16931 serve     [-addr :8080]               Start HTTP API server
 
 Flags for verifactu:
   -prev-hash      <hex>       Hash of the preceding invoice (omit for first in series)
   -prev-timestamp <timestamp> Timestamp of the preceding hash (DD-MM-YYYY HH:MM:SS)
 
+HTTP API endpoints (when running 'serve'):
+  POST /v1/invoices/validate    Validate invoice JSON → { valid, errors }
+  POST /v1/invoices/render      Render invoice JSON  → UBL 2.1 XML
+  POST /v1/invoices/verifactu   Veri*Factu chain     → { hash, timestamp, qr_verify_url }
+  GET  /healthz                 Health check
+
 Examples:
   en16931 validate  examples/simple_invoice.json
   en16931 render    examples/simple_invoice.json -o out.xml
   en16931 verifactu examples/simple_invoice.json
-  en16931 verifactu examples/simple_invoice.json \
-    -prev-hash 3A7F... -prev-timestamp "01-06-2024 09:00:00"
+  en16931 serve -addr :9000
 `
 
 func main() {
@@ -82,6 +89,14 @@ func main() {
 			os.Exit(1)
 		}
 		runVerifactu(mustLoad(fs.Arg(0)), *prevHash, *prevTimestamp)
+
+	case "serve":
+		fs := flag.NewFlagSet("serve", flag.ExitOnError)
+		addr := fs.String("addr", ":8080", "listen address")
+		_ = fs.Parse(os.Args[2:])
+		if err := server.Listen(*addr); err != nil {
+			fatalf("server error: %v", err)
+		}
 
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", os.Args[1], usage)
