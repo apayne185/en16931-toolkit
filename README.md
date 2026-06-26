@@ -18,7 +18,7 @@ This toolkit implements the UBL 2.1 binding and the Spanish Veri\*Factu CIUS.
 
 ## Features
 
-- **EN 16931 validation** — 37 BR-\* and BR-CO-\* rules with precise error messages citing the rule code and failing field path
+- **EN 16931 validation** — 48 BR-\* and BR-CO-\* rules with precise error messages citing the rule code and failing field path
 - **UBL 2.1 rendering** — schema-conformant XML you can feed to a PEPPOL access point or an Italian SDI gateway, with full XML injection protection
 - **Spain Veri\*Factu CIUS** — seller NIF/CIF/NIE validation, SHA-256 invoice chain hashing, and AEAT QR verification URL (Real Decreto 1007/2023)
 - **HTTP API** — JSON REST API exposing all three operations
@@ -218,6 +218,8 @@ See [examples/](examples/) for complete working invoices:
 
 ## Implemented EN 16931 business rules
 
+48 of ~120 normative rules are currently implemented.
+
 | Code | Rule |
 |------|------|
 | BR-2 | Invoice number required |
@@ -234,14 +236,31 @@ See [examples/](examples/) for complete working invoices:
 | BR-19 | Line net amount = quantity × unit price − allowances + charges |
 | BR-20 | Item name required |
 | BR-21 | Item price required when line net amount ≠ 0 |
+| BR-23 | Item net price must not be negative |
 | BR-25 | Credit notes must reference the preceding invoice |
 | BR-26 | Line VAT category code required |
+| BR-29 | Credit transfer payment (type 30/58) must carry an account identifier (IBAN) |
+| BR-37 | Document-level allowance must have a VAT category code |
+| BR-38 | Document-level charge must have a VAT category code |
+| BR-S-1 | Standard-rated lines must have a VAT breakdown entry |
 | BR-S-2 | Standard-rated lines must have a non-zero VAT rate |
+| BR-S-3 | Standard-rated document allowance must have a non-zero VAT rate |
+| BR-S-4 | Standard-rated document charge must have a non-zero VAT rate |
 | BR-S-6 | Standard-rated VAT amount = taxable amount × rate |
+| BR-Z-1 | Zero-rated lines must have a VAT breakdown entry |
 | BR-Z-2 | Zero-rated VAT amount must be 0 |
+| BR-E-1 | Exempt lines must have a VAT breakdown entry |
 | BR-E-2 | Exempt VAT amount must be 0 |
+| BR-AE-1 | Reverse charge lines must have a VAT breakdown entry |
 | BR-AE-3 | Reverse charge VAT amount must be 0 |
-| BR-S/Z/E/AE/K/G/O-1 | VAT breakdown must cover every category used on lines |
+| BR-K-1 | Intra-community lines must have a VAT breakdown entry |
+| BR-K-2 | Intra-community supply requires seller VAT ID and buyer VAT/tax ID |
+| BR-G-1 | Free export lines must have a VAT breakdown entry |
+| BR-O-1 | Out-of-scope lines must have a VAT breakdown entry |
+| BR-O-2 | VAT category "O" must not be mixed with other categories in the breakdown |
+| BR-O-3 | If breakdown contains "O", all invoice lines must also be "O" |
+| BR-L-1 | Canary Islands IGIC lines must have a VAT breakdown entry |
+| BR-M-1 | Ceuta/Melilla IPSI lines must have a VAT breakdown entry |
 | BR-CO-9 | Seller must have at least one tax identifier |
 | BR-CO-11 | AllowanceTotal = sum of document allowances |
 | BR-CO-12 | ChargeTotal = sum of document charges |

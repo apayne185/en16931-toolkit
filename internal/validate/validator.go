@@ -35,6 +35,7 @@ func Validate(inv *model.Invoice) []Error {
 	}
 
 	checkStructural(inv, add)
+	checkDocAllowancesCharges(inv, add)
 	checkLines(inv, add)
 	checkTotals(inv, add)
 	checkVATBreakdown(inv, add)
@@ -110,6 +111,49 @@ func checkStructural(inv *model.Invoice, add func(code, path, msg string)) {
 		add("BR-CO-9", "seller",
 			"seller must have at least one of: VAT ID (BT-31), tax registration ID (BT-32), or legal registration ID (BT-30)")
 	}
+
+	// BR-29: Credit transfer payment means must carry a payment account identifier.
+	// UNCL4461 codes: 30 = credit transfer, 58 = SEPA credit transfer.
+	for i, pm := range inv.PaymentMeans {
+		if (pm.TypeCode == "30" || pm.TypeCode == "58") && pm.AccountID == "" {
+			add("BR-29", fmt.Sprintf("payment_means[%d].account_id", i),
+				fmt.Sprintf("payment means type %q (credit transfer) requires a payment account identifier (BT-84 IBAN)", pm.TypeCode))
+		}
+	}
+}
+
+func checkDocAllowancesCharges(inv *model.Invoice, add func(code, path, msg string)) {
+	for i, a := range inv.Allowances {
+		p := fmt.Sprintf("allowances[%d]", i)
+
+		// BR-37: A document level allowance shall have a VAT category code.
+		if a.VATCategory == "" {
+			add("BR-37", p+".vat_category",
+				"document-level allowance must have a VAT category code (BT-95)")
+		}
+
+		// BR-S-3: Standard-rated document allowances must have a non-zero VAT rate.
+		if a.VATCategory == model.VATStandardRate && a.VATRate == 0 {
+			add("BR-S-3", p+".vat_rate",
+				"document-level allowance with VAT category 'S' must have a non-zero VAT rate (BT-96)")
+		}
+	}
+
+	for i, c := range inv.Charges {
+		p := fmt.Sprintf("charges[%d]", i)
+
+		// BR-38: A document level charge shall have a VAT category code.
+		if c.VATCategory == "" {
+			add("BR-38", p+".vat_category",
+				"document-level charge must have a VAT category code (BT-102)")
+		}
+
+		// BR-S-4: Standard-rated document charges must have a non-zero VAT rate.
+		if c.VATCategory == model.VATStandardRate && c.VATRate == 0 {
+			add("BR-S-4", p+".vat_rate",
+				"document-level charge with VAT category 'S' must have a non-zero VAT rate (BT-103)")
+		}
+	}
 }
 
 func checkLines(inv *model.Invoice, add func(code, path, msg string)) {
@@ -159,6 +203,12 @@ func checkLines(inv *model.Invoice, add func(code, path, msg string)) {
 		// BR-20: An invoice line shall have an item name.
 		if line.Item.Name == "" {
 			add("BR-20", p+".item.name", "item name is required")
+		}
+
+		// BR-23: The item net price shall not be negative.
+		if line.Price.Amount < 0 {
+			add("BR-23", p+".price.amount",
+				fmt.Sprintf("item net price (%.4f) must not be negative — use a line-level allowance for discounts", line.Price.Amount))
 		}
 
 		// BR-21: An invoice line shall have an item net price.
@@ -254,8 +304,8 @@ func checkVATBreakdown(inv *model.Invoice, add func(code, path, msg string)) {
 		breakdownCategories[vb.Category] = true
 	}
 
-	// BR-S-1 / BR-Z-1 / BR-E-1 / BR-AE-1: Each VAT category used on a line
-	// must have a corresponding entry in the VAT breakdown.
+	// BR-S-1 / BR-Z-1 / BR-E-1 / BR-AE-1 / BR-K-1 / BR-G-1 / BR-O-1 / BR-L-1 / BR-M-1:
+	// Each VAT category used on a line must have a corresponding entry in the VAT breakdown.
 	categoryRules := map[model.VATCategoryCode]string{
 		model.VATStandardRate:   "BR-S-1",
 		model.VATZeroRated:      "BR-Z-1",
@@ -264,11 +314,45 @@ func checkVATBreakdown(inv *model.Invoice, add func(code, path, msg string)) {
 		model.VATIntraCommunity: "BR-K-1",
 		model.VATFreeExport:     "BR-G-1",
 		model.VATOutOfScope:     "BR-O-1",
+		model.VATCanaryIslands:  "BR-L-1",
+		model.VATCeutaMelilla:   "BR-M-1",
 	}
 	for cat, rule := range categoryRules {
 		if lineCategories[cat] && !breakdownCategories[cat] {
 			add(rule, "vat_breakdown",
 				fmt.Sprintf("invoice contains lines with VAT category %q but vat_breakdown has no entry for that category", cat))
+		}
+	}
+
+	// BR-O-2: An invoice with a VAT breakdown entry "O" (out of scope) must not
+	// contain breakdown entries with any other VAT category.
+	if breakdownCategories[model.VATOutOfScope] && len(breakdownCategories) > 1 {
+		add("BR-O-2", "vat_breakdown",
+			"VAT category 'O' (out of scope) must not be mixed with other VAT categories in the breakdown")
+	}
+
+	// BR-O-3: If the VAT breakdown contains "O", all invoice lines must also be "O".
+	if breakdownCategories[model.VATOutOfScope] {
+		for i, l := range inv.Lines {
+			if l.VAT.Category != model.VATOutOfScope {
+				add("BR-O-3", fmt.Sprintf("lines[%d].vat.category", i),
+					fmt.Sprintf("VAT breakdown contains 'O' (out of scope) but line %d has category %q — all lines must be 'O'",
+						i, l.VAT.Category))
+			}
+		}
+	}
+
+	// BR-K-2: An invoice with a "K" (intra-community) VAT breakdown entry requires
+	// the seller VAT identifier (BT-31) and the buyer VAT identifier (BT-48) or
+	// buyer tax registration identifier (BT-49).
+	if breakdownCategories[model.VATIntraCommunity] {
+		if inv.Seller.VATID == "" {
+			add("BR-K-2", "seller.vat_id",
+				"intra-community supply (VAT category 'K') requires the seller VAT identifier (BT-31)")
+		}
+		if inv.Buyer.VATID == "" && inv.Buyer.TaxID == "" {
+			add("BR-K-2", "buyer.vat_id",
+				"intra-community supply (VAT category 'K') requires the buyer VAT identifier (BT-48) or tax registration identifier (BT-49)")
 		}
 	}
 
