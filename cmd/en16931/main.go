@@ -3,6 +3,8 @@
 // This tool implements the business rules defined in the European Standard
 // for electronic invoicing (EN 16931-1:2017) and produces output in the
 // UBL 2.1 syntax binding specified in EN 16931-3-2.
+// The optional 'verifactu' subcommand applies Spain's CIUS extension
+// (Real Decreto 1007/2023) on top of the base standard.
 package main
 
 import (
@@ -12,6 +14,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/apayne185/en16931-toolkit/internal/es"
 	"github.com/apayne185/en16931-toolkit/internal/model"
 	"github.com/apayne185/en16931-toolkit/internal/ubl"
 	"github.com/apayne185/en16931-toolkit/internal/validate"
@@ -20,13 +23,20 @@ import (
 const usage = `en16931 — EN 16931:2017 e-invoice validator and UBL 2.1 renderer
 
 Usage:
-  en16931 validate <invoice.json>            Check business rule compliance
-  en16931 render   <invoice.json> [-o file]  Render to UBL 2.1 XML (validates first)
+  en16931 validate  <invoice.json>              Check EN 16931 business rules
+  en16931 render    <invoice.json> [-o file]    Render to UBL 2.1 XML
+  en16931 verifactu <invoice.json> [flags]      Apply Spain Veri*Factu CIUS + compute chain hash
+
+Flags for verifactu:
+  -prev-hash      <hex>       Hash of the preceding invoice (omit for first in series)
+  -prev-timestamp <timestamp> Timestamp of the preceding hash (DD-MM-YYYY HH:MM:SS)
 
 Examples:
-  en16931 validate examples/simple_invoice.json
-  en16931 render   examples/simple_invoice.json
-  en16931 render   examples/simple_invoice.json -o out.xml
+  en16931 validate  examples/simple_invoice.json
+  en16931 render    examples/simple_invoice.json -o out.xml
+  en16931 verifactu examples/simple_invoice.json
+  en16931 verifactu examples/simple_invoice.json \
+    -prev-hash 3A7F... -prev-timestamp "01-06-2024 09:00:00"
 `
 
 func main() {
@@ -44,8 +54,7 @@ func main() {
 			fs.Usage()
 			os.Exit(1)
 		}
-		inv := mustLoad(fs.Arg(0))
-		runValidate(inv)
+		runValidate(mustLoad(fs.Arg(0)))
 
 	case "render":
 		fs := flag.NewFlagSet("render", flag.ExitOnError)
@@ -58,8 +67,21 @@ func main() {
 			fs.Usage()
 			os.Exit(1)
 		}
-		inv := mustLoad(fs.Arg(0))
-		runRender(inv, *outFile)
+		runRender(mustLoad(fs.Arg(0)), *outFile)
+
+	case "verifactu":
+		fs := flag.NewFlagSet("verifactu", flag.ExitOnError)
+		prevHash := fs.String("prev-hash", "", "hash of the preceding invoice")
+		prevTimestamp := fs.String("prev-timestamp", "", "timestamp of the preceding hash (DD-MM-YYYY HH:MM:SS)")
+		fs.Usage = func() {
+			fmt.Fprintln(os.Stderr, "usage: en16931 verifactu <invoice.json> [-prev-hash <hex>] [-prev-timestamp <ts>]")
+		}
+		_ = fs.Parse(os.Args[2:])
+		if fs.NArg() == 0 {
+			fs.Usage()
+			os.Exit(1)
+		}
+		runVerifactu(mustLoad(fs.Arg(0)), *prevHash, *prevTimestamp)
 
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", os.Args[1], usage)
@@ -90,19 +112,7 @@ func runValidate(inv *model.Invoice) {
 			inv.Number, ruleCount())
 		return
 	}
-
-	noun := "error"
-	if len(errs) != 1 {
-		noun = "errors"
-	}
-	fmt.Fprintf(os.Stderr, "✗  Validation failed (%d %s):\n\n", len(errs), noun)
-	for _, e := range errs {
-		fmt.Fprintf(os.Stderr, "   %-14s %s\n", e.Code, e.Message)
-		if e.Path != "" {
-			fmt.Fprintf(os.Stderr, "   %-14s └─ at: %s\n", "", e.Path)
-		}
-		fmt.Fprintln(os.Stderr)
-	}
+	printErrors(errs)
 	os.Exit(1)
 }
 
@@ -123,15 +133,51 @@ func runRender(inv *model.Invoice, outFile string) {
 		os.Stdout.Write(xmlBytes)
 		return
 	}
-
 	if err := os.WriteFile(outFile, xmlBytes, 0o644); err != nil {
 		fatalf("cannot write %s: %v", outFile, err)
 	}
 	fmt.Printf("✓  Wrote UBL 2.1 invoice to %s (%d bytes)\n", outFile, len(xmlBytes))
 }
 
-// ruleCount returns the number of distinct BR-* codes implemented.
-// Updated manually when new rules are added.
+func runVerifactu(inv *model.Invoice, prevHash, prevTimestamp string) {
+	errs := es.Validate(inv)
+	if len(errs) > 0 {
+		fmt.Fprintf(os.Stderr, "✗  Veri*Factu validation failed:\n\n")
+		printErrors(errs)
+		os.Exit(1)
+	}
+
+	prev := es.ChainRecord{Hash: prevHash, Timestamp: prevTimestamp}
+	rec, err := es.ChainFromInvoice(inv, prev)
+	if err != nil {
+		fatalf("chain error: %v", err)
+	}
+
+	fmt.Printf("✓  %s passes EN 16931:2017 + Spain Veri*Factu (Real Decreto 1007/2023)\n\n", inv.Number)
+	fmt.Printf("   %-18s %s\n", "TipoHuella:", rec.HashType+" (SHA-256)")
+	fmt.Printf("   %-18s %s\n", "FechaHoraHuella:", rec.Timestamp)
+	fmt.Printf("   %-18s %s\n", "Huella:", rec.Hash)
+	fmt.Printf("   %-18s %s\n", "QR (AEAT):", rec.QRVerifyURL)
+	if prevHash == "" {
+		fmt.Printf("\n   (First invoice in series — no preceding hash.)\n")
+	}
+}
+
+func printErrors(errs []validate.Error) {
+	noun := "error"
+	if len(errs) != 1 {
+		noun = "errors"
+	}
+	fmt.Fprintf(os.Stderr, "✗  Validation failed (%d %s):\n\n", len(errs), noun)
+	for _, e := range errs {
+		fmt.Fprintf(os.Stderr, "   %-14s %s\n", e.Code, e.Message)
+		if e.Path != "" {
+			fmt.Fprintf(os.Stderr, "   %-14s └─ at: %s\n", "", e.Path)
+		}
+		fmt.Fprintln(os.Stderr)
+	}
+}
+
 func ruleCount() int {
 	rules := strings.Fields(`BR-2 BR-3 BR-4 BR-5 BR-6 BR-7 BR-8 BR-9 BR-10 BR-16 BR-18
 BR-19 BR-20 BR-21 BR-25 BR-26 BR-S-1 BR-S-2 BR-S-6 BR-Z-1 BR-Z-2
