@@ -136,6 +136,8 @@ func checkLines(inv *model.Invoice, add func(code, path, msg string)) {
 
 		// BR-19: An invoice line shall have a net amount.
 		// Validate the math: net = quantity × price − allowances + charges.
+		// Round once on the final sum, not after each term, to avoid accumulating
+		// intermediate rounding errors on lines with multiple allowances/charges.
 		baseQty := line.Price.BaseQuantity
 		if baseQty == 0 {
 			baseQty = 1

@@ -79,7 +79,7 @@
   <cac:AllowanceCharge>
     <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
     {{- if .ReasonCode }}
-    <cbc:AllowanceChargeReasonCode>{{ .ReasonCode }}</cbc:AllowanceChargeReasonCode>
+    <cbc:AllowanceChargeReasonCode>{{ x .ReasonCode }}</cbc:AllowanceChargeReasonCode>
     {{- end }}
     <cbc:AllowanceChargeReason>{{ x .Reason }}</cbc:AllowanceChargeReason>
     <cbc:Amount currencyID="{{ $.Currency }}">{{ amt .Amount }}</cbc:Amount>
@@ -96,7 +96,7 @@
   <cac:AllowanceCharge>
     <cbc:ChargeIndicator>true</cbc:ChargeIndicator>
     {{- if .ReasonCode }}
-    <cbc:AllowanceChargeReasonCode>{{ .ReasonCode }}</cbc:AllowanceChargeReasonCode>
+    <cbc:AllowanceChargeReasonCode>{{ x .ReasonCode }}</cbc:AllowanceChargeReasonCode>
     {{- end }}
     <cbc:AllowanceChargeReason>{{ x .Reason }}</cbc:AllowanceChargeReason>
     <cbc:Amount currencyID="{{ $.Currency }}">{{ amt .Amount }}</cbc:Amount>
