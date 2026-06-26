@@ -23,6 +23,7 @@ func TestValidateNIF(t *testing.T) {
 		{"CIF association (G)", "G1234567D"},
 		{"NIE X-prefix", "X1234567L"},
 		{"NIE Y-prefix", "Y1234567X"},
+		{"NIE Z-prefix", "Z1234567R"},
 	}
 
 	for _, tc := range valid {

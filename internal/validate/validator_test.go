@@ -162,6 +162,17 @@ func TestValidate_InlineEdgeCases(t *testing.T) {
 	})
 }
 
+func TestError_String(t *testing.T) {
+	withPath := validate.Error{Code: "BR-2", Path: "number", Message: "required"}
+	if got := withPath.Error(); got != "BR-2 [number]: required" {
+		t.Errorf("unexpected Error() with path: %q", got)
+	}
+	noPath := validate.Error{Code: "BR-9", Message: "at least one line required"}
+	if got := noPath.Error(); got != "BR-9: at least one line required" {
+		t.Errorf("unexpected Error() without path: %q", got)
+	}
+}
+
 // assertRuleFires fails the test if rule code does not appear in the validation errors.
 func assertRuleFires(t *testing.T, inv *model.Invoice, code string) {
 	t.Helper()
