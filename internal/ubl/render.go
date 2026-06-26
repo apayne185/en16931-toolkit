@@ -17,17 +17,15 @@ import (
 //go:embed invoice.xml.tmpl
 var rawTemplate string
 
-// xmlEscape escapes s for safe embedding in XML text content and attribute values.
-// text/template does not auto-escape XML, so all user-supplied string fields
-// must pass through this function in the template.
 func xmlEscape(s string) string {
 	var buf strings.Builder
-	xml.EscapeText(&buf, []byte(s)) //nolint:errcheck // writing to strings.Builder never fails
+	xml.EscapeText(&buf, []byte(s))
 	return buf.String()
 }
 
 var tmpl = template.Must(
 	template.New("ubl").Funcs(template.FuncMap{
+		// x escapes a string for safe embedding in XML text content.
 		"x": xmlEscape,
 		// amt formats a float64 as a monetary amount with exactly 2 decimal places.
 		"amt": func(v float64) string { return fmt.Sprintf("%.2f", v) },
