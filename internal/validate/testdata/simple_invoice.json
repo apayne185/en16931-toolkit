@@ -7,8 +7,8 @@
   "buyer_reference": "PO-98765",
   "seller": {
     "name": "Acme Software SL",
-    "vat_id": "ESB12345674",
-    "legal_id": "B12345674",
+    "vat_id": "ESB12345678",
+    "legal_id": "B12345678",
     "address": {
       "street": "Calle Gran Vía 1",
       "city": "Madrid",

@@ -140,13 +140,14 @@ func checkLines(inv *model.Invoice, add func(code, path, msg string)) {
 		if baseQty == 0 {
 			baseQty = 1
 		}
-		expectedNet := model.Round2(line.Quantity * line.Price.Amount / baseQty)
+		expectedNet := line.Quantity * line.Price.Amount / baseQty
 		for _, a := range line.Allowances {
-			expectedNet = model.Round2(expectedNet - a.Amount)
+			expectedNet -= a.Amount
 		}
 		for _, c := range line.Charges {
-			expectedNet = model.Round2(expectedNet + c.Amount)
+			expectedNet += c.Amount
 		}
+		expectedNet = model.Round2(expectedNet)
 		if math.Abs(model.Round2(line.NetAmount)-expectedNet) > 0.01 {
 			add("BR-19", p+".net_amount",
 				fmt.Sprintf("net amount %.2f does not match quantity (%.4f) × price (%.4f) − allowances + charges = %.2f",

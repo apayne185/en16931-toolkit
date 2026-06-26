@@ -1,0 +1,63 @@
+{
+  "number": "CN-2024-042",
+  "issue_date": "2024-07-15",
+  "type_code": "381",
+  "currency": "EUR",
+  "buyer_reference": "PO-98765",
+  "preceding_invoice_ref": "INV-2024-001",
+  "notes": [
+    "Partial credit for overbilled professional services in June 2024.",
+    "5 hours credited per agreed scope reduction — see ticket #4821."
+  ],
+  "seller": {
+    "name": "Acme Software SL",
+    "vat_id": "ESB12345678",
+    "legal_id": "B12345678",
+    "address": {
+      "street": "Calle Gran Vía 1",
+      "city": "Madrid",
+      "post_code": "28013",
+      "country": "ES"
+    }
+  },
+  "buyer": {
+    "name": "DeepL SE",
+    "vat_id": "DE123456789",
+    "legal_id": "HRB 12345",
+    "address": {
+      "street": "Maarweg 165",
+      "city": "Cologne",
+      "post_code": "50825",
+      "country": "DE"
+    }
+  },
+  "vat_breakdown": [
+    {
+      "category": "S",
+      "rate": 21,
+      "taxable_amount": 500.00,
+      "tax_amount": 105.00
+    }
+  ],
+  "totals": {
+    "line_net_total": 500.00,
+    "tax_exclusive_amount": 500.00,
+    "tax_amount": 105.00,
+    "tax_inclusive_amount": 605.00,
+    "payable_amount": 605.00
+  },
+  "lines": [
+    {
+      "id": "1",
+      "quantity": 5,
+      "quantity_unit": "HUR",
+      "net_amount": 500.00,
+      "vat": { "category": "S", "rate": 21 },
+      "item": {
+        "name": "Professional Services — Integration Setup (credit)",
+        "description": "Correction: 5 hours credited per agreed scope reduction"
+      },
+      "price": { "amount": 100.00 }
+    }
+  ]
+}

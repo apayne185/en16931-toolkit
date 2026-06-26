@@ -1,0 +1,37 @@
+{
+  "number": "INV-2024-BAD3",
+  "issue_date": "2024-06-01",
+  "type_code": "380",
+  "currency": "EUR",
+  "buyer_reference": "PO-1",
+  "seller": {
+    "name": "Seller Co",
+    "vat_id": "ESB99999999",
+    "address": { "country": "ES" }
+  },
+  "buyer": {
+    "name": "Buyer Co",
+    "address": { "country": "DE" }
+  },
+  "vat_breakdown": [
+    { "category": "S", "rate": 21, "taxable_amount": 999.00, "tax_amount": 209.79 }
+  ],
+  "totals": {
+    "line_net_total": 999.00,
+    "tax_exclusive_amount": 999.00,
+    "tax_amount": 209.79,
+    "tax_inclusive_amount": 1208.79,
+    "payable_amount": 1208.79
+  },
+  "lines": [
+    {
+      "id": "1",
+      "quantity": 10,
+      "quantity_unit": "HUR",
+      "net_amount": 999.00,
+      "vat": { "category": "S", "rate": 21 },
+      "item": { "name": "Consultancy" },
+      "price": { "amount": 100.00 }
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "number": "INV-2024-100",
+  "issue_date": "2024-09-01",
+  "due_date": "2024-09-30",
+  "type_code": "380",
+  "currency": "EUR",
+  "buyer_reference": "PO-55512",
+  "notes": [
+    "VAT reverse charge — Article 196 of Council Directive 2006/112/EC applies.",
+    "The customer is liable to account for VAT in the country of receipt."
+  ],
+  "seller": {
+    "name": "Acme Software SL",
+    "vat_id": "ESB12345678",
+    "legal_id": "B12345678",
+    "address": {
+      "street": "Calle Gran Vía 1",
+      "city": "Madrid",
+      "post_code": "28013",
+      "country": "ES"
+    }
+  },
+  "buyer": {
+    "name": "Fever Labs GmbH",
+    "vat_id": "DE987654321",
+    "legal_id": "HRB 98765",
+    "address": {
+      "street": "Unter den Linden 10",
+      "city": "Berlin",
+      "post_code": "10117",
+      "country": "DE"
+    }
+  },
+  "payment_means": [
+    {
+      "type_code": "58",
+      "account_id": "ES91 2100 0418 4502 0005 1332",
+      "service_provider_id": "CAIXESBBXXX",
+      "remittance_info": "INV-2024-100"
+    }
+  ],
+  "vat_breakdown": [
+    {
+      "category": "AE",
+      "rate": 0,
+      "taxable_amount": 3500.00,
+      "tax_amount": 0.00,
+      "exemption_reason": "Reverse charge — intra-EU B2B supply of services",
+      "exemption_reason_code": "VATEX-EU-AE"
+    }
+  ],
+  "totals": {
+    "line_net_total": 3500.00,
+    "tax_exclusive_amount": 3500.00,
+    "tax_amount": 0.00,
+    "tax_inclusive_amount": 3500.00,
+    "payable_amount": 3500.00
+  },
+  "lines": [
+    {
+      "id": "1",
+      "quantity": 1,
+      "quantity_unit": "MON",
+      "net_amount": 2000.00,
+      "vat": { "category": "AE", "rate": 0 },
+      "item": {
+        "name": "API Platform Subscription — Enterprise",
+        "description": "Monthly subscription, September 2024",
+        "seller_id": "SKU-API-ENT"
+      },
+      "price": { "amount": 2000.00 }
+    },
+    {
+      "id": "2",
+      "quantity": 15,
+      "quantity_unit": "HUR",
+      "net_amount": 1500.00,
+      "vat": { "category": "AE", "rate": 0 },
+      "item": {
+        "name": "Custom Integration Development",
+        "description": "EN 16931 / Veri*Factu integration for Spain market entry"
+      },
+      "price": { "amount": 100.00 }
+    }
+  ]
+}
