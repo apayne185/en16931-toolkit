@@ -6,7 +6,9 @@ package ubl
 import (
 	"bytes"
 	_ "embed"
+	"encoding/xml"
 	"fmt"
+	"strings"
 	"text/template"
 
 	"github.com/apayne185/en16931-toolkit/internal/model"
@@ -15,8 +17,18 @@ import (
 //go:embed invoice.xml.tmpl
 var rawTemplate string
 
+// xmlEscape escapes s for safe embedding in XML text content and attribute values.
+// text/template does not auto-escape XML, so all user-supplied string fields
+// must pass through this function in the template.
+func xmlEscape(s string) string {
+	var buf strings.Builder
+	xml.EscapeText(&buf, []byte(s)) //nolint:errcheck // writing to strings.Builder never fails
+	return buf.String()
+}
+
 var tmpl = template.Must(
 	template.New("ubl").Funcs(template.FuncMap{
+		"x": xmlEscape,
 		// amt formats a float64 as a monetary amount with exactly 2 decimal places.
 		"amt": func(v float64) string { return fmt.Sprintf("%.2f", v) },
 		// qty formats a quantity: integer quantities drop the decimal point.
@@ -32,7 +44,7 @@ var tmpl = template.Must(
 			if s == "" {
 				return "urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0"
 			}
-			return s
+			return xmlEscape(s)
 		},
 	}).Parse(rawTemplate),
 )

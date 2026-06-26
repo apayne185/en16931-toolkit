@@ -39,9 +39,6 @@ func Listen(addr string) error {
 	return srv.ListenAndServe()
 }
 
-// validateRequest is the JSON body for POST /v1/invoices/validate.
-// It is identical to the model.Invoice structure (the invoice itself).
-
 type validationResponse struct {
 	Valid  bool             `json:"valid"`
 	Errors []validationErr  `json:"errors,omitempty"`
@@ -139,6 +136,11 @@ type verifactuResponse struct {
 // Response 200: { "valid": true, "hash": "...", "timestamp": "...", "qr_verify_url": "..." }
 // Response 422: { "valid": false, "errors": [...] }
 func handleVerifactu(w http.ResponseWriter, r *http.Request) {
+	if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		writeError(w, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	var req verifactuRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -175,12 +177,15 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+const maxBodyBytes = 1 << 20 // 1 MiB — invoices are never this large
+
 // decodeInvoice reads and decodes a model.Invoice from the request body.
 func decodeInvoice(w http.ResponseWriter, r *http.Request) (*model.Invoice, bool) {
 	if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		writeError(w, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		return nil, false
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	var inv model.Invoice
 	if err := json.NewDecoder(r.Body).Decode(&inv); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())

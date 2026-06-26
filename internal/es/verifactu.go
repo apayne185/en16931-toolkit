@@ -16,6 +16,7 @@ package es
 import (
 	"crypto/sha256"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -99,13 +100,13 @@ func Chain(in ChainInput) ChainRecord {
 	sum := sha256.Sum256([]byte(hashInput))
 	hash := fmt.Sprintf("%X", sum)
 
-	qr := fmt.Sprintf("%s?nif=%s&numserie=%s&fecha=%s&importe=%s",
-		aeatVerifyBase,
-		in.SellerNIF,
-		in.InvoiceNumber,
-		in.IssueDate,
-		in.TotalAmount,
-	)
+	params := url.Values{
+		"nif":      {in.SellerNIF},
+		"numserie": {in.InvoiceNumber},
+		"fecha":    {in.IssueDate},
+		"importe":  {in.TotalAmount},
+	}
+	qr := aeatVerifyBase + "?" + params.Encode()
 
 	return ChainRecord{
 		Hash:        hash,
