@@ -3,6 +3,7 @@ package validate_test
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/apayne185/en16931-toolkit/internal/model"
@@ -21,6 +22,38 @@ func loadFixture(t *testing.T, name string) *model.Invoice {
 		t.Fatalf("decode fixture %s: %v", name, err)
 	}
 	return &inv
+}
+
+// TestValidate_Examples validates every JSON file under examples/ at the repo
+// root, ensuring published examples stay conformant as the validator evolves.
+func TestValidate_Examples(t *testing.T) {
+	entries, err := os.ReadDir("../../examples")
+	if err != nil {
+		t.Fatalf("cannot read examples dir: %v", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+			continue
+		}
+		t.Run(e.Name(), func(t *testing.T) {
+			f, err := os.Open(filepath.Join("../../examples", e.Name()))
+			if err != nil {
+				t.Fatalf("open: %v", err)
+			}
+			defer f.Close()
+			var inv model.Invoice
+			if err := json.NewDecoder(f).Decode(&inv); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			errs := validate.Validate(&inv)
+			if len(errs) != 0 {
+				t.Errorf("expected 0 errors, got %d:", len(errs))
+				for _, e := range errs {
+					t.Errorf("  %s", e)
+				}
+			}
+		})
+	}
 }
 
 // TestValidate_Pass checks that all known-valid examples produce zero errors.
@@ -160,6 +193,218 @@ func TestValidate_InlineEdgeCases(t *testing.T) {
 		inv.Lines[0].VAT.Rate = 0
 		assertRuleFires(t, inv, "BR-S-2")
 	})
+}
+
+// TestValidate_NewRules covers the 11 rules added in the polish pass.
+func TestValidate_NewRules(t *testing.T) {
+	t.Run("BR-23: negative item price", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Lines[0].Price.Amount = -10.00
+		assertRuleFires(t, inv, "BR-23")
+	})
+
+	t.Run("BR-23: zero price is allowed", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Lines[0].Price.Amount = 0
+		inv.Lines[0].NetAmount = 0
+		inv.Totals.LineNetTotal = 0
+		inv.Totals.TaxExclusiveAmount = 0
+		inv.Totals.TaxAmount = 0
+		inv.Totals.TaxInclusiveAmount = 0
+		inv.Totals.PayableAmount = 0
+		inv.VATBreakdown[0].TaxableAmount = 0
+		inv.VATBreakdown[0].TaxAmount = 0
+		assertRuleAbsent(t, inv, "BR-23")
+	})
+
+	t.Run("BR-29: credit transfer without account ID", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.PaymentMeans = []model.PaymentMeans{{TypeCode: "58"}} // no AccountID
+		assertRuleFires(t, inv, "BR-29")
+	})
+
+	t.Run("BR-29: SEPA transfer with account ID passes", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.PaymentMeans = []model.PaymentMeans{{TypeCode: "58", AccountID: "ES91 2100 0418 4502 0005 1332"}}
+		assertRuleAbsent(t, inv, "BR-29")
+	})
+
+	t.Run("BR-29: non-transfer payment type without account ID passes", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.PaymentMeans = []model.PaymentMeans{{TypeCode: "10"}} // cash — no account ID needed
+		assertRuleAbsent(t, inv, "BR-29")
+	})
+
+	t.Run("BR-37: document allowance missing VAT category", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Allowances = []model.AllowanceCharge{{Reason: "Discount", Amount: 10}}
+		assertRuleFires(t, inv, "BR-37")
+	})
+
+	t.Run("BR-38: document charge missing VAT category", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Charges = []model.AllowanceCharge{{Reason: "Handling fee", Amount: 5}}
+		assertRuleFires(t, inv, "BR-38")
+	})
+
+	t.Run("BR-S-3: standard-rated allowance with zero rate", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Allowances = []model.AllowanceCharge{
+			{Reason: "Discount", VATCategory: model.VATStandardRate, VATRate: 0, Amount: 10},
+		}
+		assertRuleFires(t, inv, "BR-S-3")
+	})
+
+	t.Run("BR-S-4: standard-rated charge with zero rate", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Charges = []model.AllowanceCharge{
+			{Reason: "Handling", VATCategory: model.VATStandardRate, VATRate: 0, Amount: 5},
+		}
+		assertRuleFires(t, inv, "BR-S-4")
+	})
+
+	t.Run("BR-L-1: Canary Islands line without breakdown entry", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Lines[0].VAT.Category = model.VATCanaryIslands
+		inv.Lines[0].VAT.Rate = 7
+		// VAT breakdown still has "S" — no "L" entry
+		assertRuleFires(t, inv, "BR-L-1")
+	})
+
+	t.Run("BR-M-1: Ceuta/Melilla line without breakdown entry", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Lines[0].VAT.Category = model.VATCeutaMelilla
+		inv.Lines[0].VAT.Rate = 4
+		assertRuleFires(t, inv, "BR-M-1")
+	})
+
+	t.Run("BR-O-2: O breakdown mixed with other categories", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Lines[0].VAT.Category = model.VATOutOfScope
+		inv.VATBreakdown = []model.VATBreakdown{
+			{Category: model.VATOutOfScope, TaxableAmount: 50, TaxAmount: 0},
+			{Category: model.VATStandardRate, Rate: 21, TaxableAmount: 50, TaxAmount: 10.50},
+		}
+		assertRuleFires(t, inv, "BR-O-2")
+	})
+
+	t.Run("BR-O-3: O breakdown but line has different category", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.VATBreakdown = []model.VATBreakdown{
+			{Category: model.VATOutOfScope, TaxableAmount: 100, TaxAmount: 0},
+		}
+		inv.Totals.TaxAmount = 0
+		inv.Totals.TaxInclusiveAmount = 100
+		inv.Totals.PayableAmount = 100
+		// Line still has category S — violates BR-O-3
+		assertRuleFires(t, inv, "BR-O-3")
+	})
+
+	t.Run("BR-O-3: all lines O passes", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Lines[0].VAT.Category = model.VATOutOfScope
+		inv.Lines[0].VAT.Rate = 0
+		inv.VATBreakdown = []model.VATBreakdown{
+			{Category: model.VATOutOfScope, TaxableAmount: 100, TaxAmount: 0},
+		}
+		inv.Totals.TaxAmount = 0
+		inv.Totals.TaxInclusiveAmount = 100
+		inv.Totals.PayableAmount = 100
+		assertRuleAbsent(t, inv, "BR-O-3")
+		assertRuleAbsent(t, inv, "BR-O-2")
+	})
+
+	t.Run("BR-K-2: K breakdown without seller VAT ID", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Lines[0].VAT.Category = model.VATIntraCommunity
+		inv.Lines[0].VAT.Rate = 0
+		inv.VATBreakdown = []model.VATBreakdown{
+			{Category: model.VATIntraCommunity, TaxableAmount: 100, TaxAmount: 0},
+		}
+		inv.Totals.TaxAmount = 0
+		inv.Totals.TaxInclusiveAmount = 100
+		inv.Totals.PayableAmount = 100
+		inv.Seller.VATID = "" // no VAT ID
+		inv.Seller.LegalID = "B12345678"
+		inv.Buyer.VATID = "DE123456789"
+		assertRuleFires(t, inv, "BR-K-2")
+	})
+
+	t.Run("BR-K-2: K breakdown without buyer VAT ID", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Lines[0].VAT.Category = model.VATIntraCommunity
+		inv.Lines[0].VAT.Rate = 0
+		inv.VATBreakdown = []model.VATBreakdown{
+			{Category: model.VATIntraCommunity, TaxableAmount: 100, TaxAmount: 0},
+		}
+		inv.Totals.TaxAmount = 0
+		inv.Totals.TaxInclusiveAmount = 100
+		inv.Totals.PayableAmount = 100
+		inv.Buyer.VATID = ""
+		inv.Buyer.TaxID = ""
+		assertRuleFires(t, inv, "BR-K-2")
+	})
+
+	t.Run("BR-36: document allowance missing reason", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Allowances = []model.AllowanceCharge{{VATCategory: model.VATStandardRate, VATRate: 21, Amount: 10}}
+		assertRuleFires(t, inv, "BR-36")
+	})
+
+	t.Run("BR-36: allowance with reason passes", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Allowances = []model.AllowanceCharge{{Reason: "Discount", VATCategory: model.VATStandardRate, VATRate: 21, Amount: 10}}
+		assertRuleAbsent(t, inv, "BR-36")
+	})
+
+	t.Run("BR-39: negative document allowance amount", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Allowances = []model.AllowanceCharge{{Reason: "Discount", VATCategory: model.VATStandardRate, VATRate: 21, Amount: -10}}
+		assertRuleFires(t, inv, "BR-39")
+	})
+
+	t.Run("BR-39: zero allowance amount is allowed", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Allowances = []model.AllowanceCharge{{Reason: "Discount", VATCategory: model.VATStandardRate, VATRate: 21, Amount: 0}}
+		assertRuleAbsent(t, inv, "BR-39")
+	})
+
+	t.Run("BR-42: negative document charge amount", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Charges = []model.AllowanceCharge{{Reason: "Handling", VATCategory: model.VATStandardRate, VATRate: 21, Amount: -5}}
+		assertRuleFires(t, inv, "BR-42")
+	})
+
+	t.Run("BR-42: positive charge amount passes", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Charges = []model.AllowanceCharge{{Reason: "Handling", VATCategory: model.VATStandardRate, VATRate: 21, Amount: 5}}
+		assertRuleAbsent(t, inv, "BR-42")
+	})
+
+	t.Run("BR-K-2: K breakdown with both IDs passes", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Lines[0].VAT.Category = model.VATIntraCommunity
+		inv.Lines[0].VAT.Rate = 0
+		inv.VATBreakdown = []model.VATBreakdown{
+			{Category: model.VATIntraCommunity, TaxableAmount: 100, TaxAmount: 0},
+		}
+		inv.Totals.TaxAmount = 0
+		inv.Totals.TaxInclusiveAmount = 100
+		inv.Totals.PayableAmount = 100
+		inv.Buyer.VATID = "DE123456789"
+		assertRuleAbsent(t, inv, "BR-K-2")
+	})
+}
+
+func TestError_String(t *testing.T) {
+	withPath := validate.Error{Code: "BR-2", Path: "number", Message: "required"}
+	if got := withPath.Error(); got != "BR-2 [number]: required" {
+		t.Errorf("unexpected Error() with path: %q", got)
+	}
+	noPath := validate.Error{Code: "BR-9", Message: "at least one line required"}
+	if got := noPath.Error(); got != "BR-9: at least one line required" {
+		t.Errorf("unexpected Error() without path: %q", got)
+	}
 }
 
 // assertRuleFires fails the test if rule code does not appear in the validation errors.

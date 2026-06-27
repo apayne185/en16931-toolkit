@@ -126,6 +126,53 @@ func TestValidateSpain_CorrectedInvoiceMissingRef(t *testing.T) {
 	}
 }
 
+func TestChainFromInvoice_InvalidTypeCode(t *testing.T) {
+	inv := minimalSpainInvoice()
+	inv.TypeCode = "999" // not a valid EN 16931 type code
+	_, err := es.ChainFromInvoice(inv, es.ChainRecord{})
+	if err == nil {
+		t.Error("expected error for unmappable type code, got nil")
+	}
+}
+
+func TestChainFromInvoice_AllTypeCodes(t *testing.T) {
+	cases := []struct {
+		code     model.InvoiceTypeCode
+		wantType string
+	}{
+		{model.TypeCommercialInvoice, "F1"},
+		{model.TypeSelfBilledInvoice, "F1"},
+		{model.TypePrepaymentInvoice, "F1"},
+		{model.TypeCreditNote, "R1"},
+		{model.TypeCorrectedInvoice, "R1"},
+	}
+	for _, tc := range cases {
+		inv := minimalSpainInvoice()
+		inv.TypeCode = tc.code
+		if tc.code == model.TypeCreditNote || tc.code == model.TypeCorrectedInvoice {
+			inv.PrecedingInvoiceRef = "INV-PREV-001"
+		}
+		rec, err := es.ChainFromInvoice(inv, es.ChainRecord{})
+		if err != nil {
+			t.Errorf("type %s: unexpected error: %v", tc.code, err)
+			continue
+		}
+		if len(rec.Hash) != 64 {
+			t.Errorf("type %s: expected 64-char hash, got %d", tc.code, len(rec.Hash))
+		}
+	}
+}
+
+func TestValidateSpain_InvalidTypeCode(t *testing.T) {
+	inv := minimalSpainInvoice()
+	inv.TypeCode = "999"
+	errs := es.Validate(inv)
+	// Base rules fire first (BR-4 for invalid type code), es.Validate returns early.
+	if len(errs) == 0 {
+		t.Error("expected errors for invalid type code, got none")
+	}
+}
+
 func hasCode(errs []validate.Error, code string) bool {
 	for _, e := range errs {
 		if e.Code == code {

@@ -153,3 +153,49 @@ func TestVerifactu_Valid(t *testing.T) {
 		t.Errorf("QR URL should point to AEAT, got %q", qr)
 	}
 }
+
+func TestVerifactu_WrongContentType(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/v1/invoices/verifactu",
+		bytes.NewBufferString(`{"invoice":`+validInvoiceJSON+`}`))
+	req.Header.Set("Content-Type", "text/plain")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("expected 415, got %d", rr.Code)
+	}
+}
+
+func TestVerifactu_BadJSON(t *testing.T) {
+	rr := post(t, "/v1/invoices/verifactu", `{not valid json}`)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestVerifactu_SpainValidationFailure(t *testing.T) {
+	// Seller VAT ID is not a valid Spanish NIF — ES-01 should fire.
+	body := strings.Replace(validInvoiceJSON, `"ESB12345674"`, `"ESB99999999"`, 1)
+	rr := post(t, "/v1/invoices/verifactu", `{"invoice":`+body+`}`)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d: %s", rr.Code, rr.Body)
+	}
+	var resp map[string]any
+	json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["valid"] != false {
+		t.Errorf("expected valid=false, got %v", resp)
+	}
+}
+
+func TestValidate_BadJSON(t *testing.T) {
+	rr := post(t, "/v1/invoices/validate", `{not valid json}`)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestRender_BadJSON(t *testing.T) {
+	rr := post(t, "/v1/invoices/render", `{not valid json}`)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}

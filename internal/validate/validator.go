@@ -35,6 +35,7 @@ func Validate(inv *model.Invoice) []Error {
 	}
 
 	checkStructural(inv, add)
+	checkDocAllowancesCharges(inv, add)
 	checkLines(inv, add)
 	checkTotals(inv, add)
 	checkVATBreakdown(inv, add)
@@ -110,6 +111,67 @@ func checkStructural(inv *model.Invoice, add func(code, path, msg string)) {
 		add("BR-CO-9", "seller",
 			"seller must have at least one of: VAT ID (BT-31), tax registration ID (BT-32), or legal registration ID (BT-30)")
 	}
+
+	// BR-29: Credit transfer payment means must carry a payment account identifier.
+	// UNCL4461 codes: 30 = credit transfer, 58 = SEPA credit transfer.
+	for i, pm := range inv.PaymentMeans {
+		if (pm.TypeCode == "30" || pm.TypeCode == "58") && pm.AccountID == "" {
+			add("BR-29", fmt.Sprintf("payment_means[%d].account_id", i),
+				fmt.Sprintf("payment means type %q (credit transfer) requires a payment account identifier (BT-84 IBAN)", pm.TypeCode))
+		}
+	}
+}
+
+func checkDocAllowancesCharges(inv *model.Invoice, add func(code, path, msg string)) {
+	for i, a := range inv.Allowances {
+		p := fmt.Sprintf("allowances[%d]", i)
+
+		// BR-36: A document level allowance shall have a reason.
+		if a.Reason == "" {
+			add("BR-36", p+".reason",
+				"document-level allowance must have a reason (BT-97)")
+		}
+
+		// BR-37: A document level allowance shall have a VAT category code.
+		if a.VATCategory == "" {
+			add("BR-37", p+".vat_category",
+				"document-level allowance must have a VAT category code (BT-95)")
+		}
+
+		// BR-39: A document level allowance amount shall not be negative.
+		if a.Amount < 0 {
+			add("BR-39", p+".amount",
+				fmt.Sprintf("document-level allowance amount (%.2f) must not be negative", a.Amount))
+		}
+
+		// BR-S-3: Standard-rated document allowances must have a non-zero VAT rate.
+		if a.VATCategory == model.VATStandardRate && a.VATRate == 0 {
+			add("BR-S-3", p+".vat_rate",
+				"document-level allowance with VAT category 'S' must have a non-zero VAT rate (BT-96)")
+		}
+	}
+
+	for i, c := range inv.Charges {
+		p := fmt.Sprintf("charges[%d]", i)
+
+		// BR-38: A document level charge shall have a VAT category code.
+		if c.VATCategory == "" {
+			add("BR-38", p+".vat_category",
+				"document-level charge must have a VAT category code (BT-102)")
+		}
+
+		// BR-42: A document level charge amount shall not be negative.
+		if c.Amount < 0 {
+			add("BR-42", p+".amount",
+				fmt.Sprintf("document-level charge amount (%.2f) must not be negative", c.Amount))
+		}
+
+		// BR-S-4: Standard-rated document charges must have a non-zero VAT rate.
+		if c.VATCategory == model.VATStandardRate && c.VATRate == 0 {
+			add("BR-S-4", p+".vat_rate",
+				"document-level charge with VAT category 'S' must have a non-zero VAT rate (BT-103)")
+		}
+	}
 }
 
 func checkLines(inv *model.Invoice, add func(code, path, msg string)) {
@@ -150,7 +212,7 @@ func checkLines(inv *model.Invoice, add func(code, path, msg string)) {
 			expectedNet += c.Amount
 		}
 		expectedNet = model.Round2(expectedNet)
-		if math.Abs(model.Round2(line.NetAmount)-expectedNet) > 0.01 {
+		if math.Abs(model.Round2(line.NetAmount)-expectedNet) > 0.005 {
 			add("BR-19", p+".net_amount",
 				fmt.Sprintf("net amount %.2f does not match quantity (%.4f) × price (%.4f) − allowances + charges = %.2f",
 					line.NetAmount, line.Quantity, line.Price.Amount, expectedNet))
@@ -159,6 +221,12 @@ func checkLines(inv *model.Invoice, add func(code, path, msg string)) {
 		// BR-20: An invoice line shall have an item name.
 		if line.Item.Name == "" {
 			add("BR-20", p+".item.name", "item name is required")
+		}
+
+		// BR-23: The item net price shall not be negative.
+		if line.Price.Amount < 0 {
+			add("BR-23", p+".price.amount",
+				fmt.Sprintf("item net price (%.4f) must not be negative — use a line-level allowance for discounts", line.Price.Amount))
 		}
 
 		// BR-21: An invoice line shall have an item net price.
@@ -189,7 +257,7 @@ func checkTotals(inv *model.Invoice, add func(code, path, msg string)) {
 		lineSum += l.NetAmount
 	}
 	lineSum = model.Round2(lineSum)
-	if math.Abs(model.Round2(t.LineNetTotal)-lineSum) > 0.01 {
+	if math.Abs(model.Round2(t.LineNetTotal)-lineSum) > 0.005 {
 		add("BR-CO-13", "totals.line_net_total",
 			fmt.Sprintf("line_net_total %.2f must equal sum of line net amounts %.2f",
 				t.LineNetTotal, lineSum))
@@ -200,7 +268,7 @@ func checkTotals(inv *model.Invoice, add func(code, path, msg string)) {
 	for _, a := range inv.Allowances {
 		allowSum += a.Amount
 	}
-	if math.Abs(model.Round2(t.AllowanceTotal)-model.Round2(allowSum)) > 0.01 {
+	if math.Abs(model.Round2(t.AllowanceTotal)-model.Round2(allowSum)) > 0.005 {
 		add("BR-CO-11", "totals.allowance_total",
 			fmt.Sprintf("allowance_total %.2f must equal sum of document allowances %.2f",
 				t.AllowanceTotal, allowSum))
@@ -211,7 +279,7 @@ func checkTotals(inv *model.Invoice, add func(code, path, msg string)) {
 	for _, c := range inv.Charges {
 		chargeSum += c.Amount
 	}
-	if math.Abs(model.Round2(t.ChargeTotal)-model.Round2(chargeSum)) > 0.01 {
+	if math.Abs(model.Round2(t.ChargeTotal)-model.Round2(chargeSum)) > 0.005 {
 		add("BR-CO-12", "totals.charge_total",
 			fmt.Sprintf("charge_total %.2f must equal sum of document charges %.2f",
 				t.ChargeTotal, chargeSum))
@@ -219,7 +287,7 @@ func checkTotals(inv *model.Invoice, add func(code, path, msg string)) {
 
 	// BR-CO-14: TaxExclusiveAmount = LineNetTotal − AllowanceTotal + ChargeTotal.
 	expectedExcl := model.Round2(t.LineNetTotal - t.AllowanceTotal + t.ChargeTotal)
-	if math.Abs(model.Round2(t.TaxExclusiveAmount)-expectedExcl) > 0.01 {
+	if math.Abs(model.Round2(t.TaxExclusiveAmount)-expectedExcl) > 0.005 {
 		add("BR-CO-14", "totals.tax_exclusive_amount",
 			fmt.Sprintf("tax_exclusive_amount (%.2f) must equal line_net_total (%.2f) − allowance_total (%.2f) + charge_total (%.2f) = %.2f",
 				t.TaxExclusiveAmount, t.LineNetTotal, t.AllowanceTotal, t.ChargeTotal, expectedExcl))
@@ -227,7 +295,7 @@ func checkTotals(inv *model.Invoice, add func(code, path, msg string)) {
 
 	// BR-CO-15: TaxInclusiveAmount = TaxExclusiveAmount + TaxAmount.
 	expectedIncl := model.Round2(t.TaxExclusiveAmount + t.TaxAmount)
-	if math.Abs(model.Round2(t.TaxInclusiveAmount)-expectedIncl) > 0.01 {
+	if math.Abs(model.Round2(t.TaxInclusiveAmount)-expectedIncl) > 0.005 {
 		add("BR-CO-15", "totals.tax_inclusive_amount",
 			fmt.Sprintf("tax_inclusive_amount (%.2f) must equal tax_exclusive_amount (%.2f) + tax_amount (%.2f) = %.2f",
 				t.TaxInclusiveAmount, t.TaxExclusiveAmount, t.TaxAmount, expectedIncl))
@@ -235,7 +303,7 @@ func checkTotals(inv *model.Invoice, add func(code, path, msg string)) {
 
 	// BR-CO-16: PayableAmount = TaxInclusiveAmount − PrepaidAmount + RoundingAmount.
 	expectedPayable := model.Round2(t.TaxInclusiveAmount - t.PrepaidAmount + t.RoundingAmount)
-	if math.Abs(model.Round2(t.PayableAmount)-expectedPayable) > 0.01 {
+	if math.Abs(model.Round2(t.PayableAmount)-expectedPayable) > 0.005 {
 		add("BR-CO-16", "totals.payable_amount",
 			fmt.Sprintf("payable_amount (%.2f) must equal tax_inclusive_amount (%.2f) − prepaid_amount (%.2f) + rounding_amount (%.2f) = %.2f",
 				t.PayableAmount, t.TaxInclusiveAmount, t.PrepaidAmount, t.RoundingAmount, expectedPayable))
@@ -254,21 +322,60 @@ func checkVATBreakdown(inv *model.Invoice, add func(code, path, msg string)) {
 		breakdownCategories[vb.Category] = true
 	}
 
-	// BR-S-1 / BR-Z-1 / BR-E-1 / BR-AE-1: Each VAT category used on a line
-	// must have a corresponding entry in the VAT breakdown.
-	categoryRules := map[model.VATCategoryCode]string{
-		model.VATStandardRate:   "BR-S-1",
-		model.VATZeroRated:      "BR-Z-1",
-		model.VATExempt:         "BR-E-1",
-		model.VATReverseCharge:  "BR-AE-1",
-		model.VATIntraCommunity: "BR-K-1",
-		model.VATFreeExport:     "BR-G-1",
-		model.VATOutOfScope:     "BR-O-1",
+	// BR-S-1 / BR-Z-1 / BR-E-1 / BR-AE-1 / BR-K-1 / BR-G-1 / BR-O-1 / BR-L-1 / BR-M-1:
+	// Each VAT category used on a line must have a corresponding entry in the VAT breakdown.
+	// Ordered slice (not map) so error messages are always produced in spec order.
+	type catRule struct {
+		cat  model.VATCategoryCode
+		rule string
 	}
-	for cat, rule := range categoryRules {
-		if lineCategories[cat] && !breakdownCategories[cat] {
-			add(rule, "vat_breakdown",
-				fmt.Sprintf("invoice contains lines with VAT category %q but vat_breakdown has no entry for that category", cat))
+	categoryRules := []catRule{
+		{model.VATStandardRate, "BR-S-1"},
+		{model.VATZeroRated, "BR-Z-1"},
+		{model.VATExempt, "BR-E-1"},
+		{model.VATReverseCharge, "BR-AE-1"},
+		{model.VATIntraCommunity, "BR-K-1"},
+		{model.VATFreeExport, "BR-G-1"},
+		{model.VATOutOfScope, "BR-O-1"},
+		{model.VATCanaryIslands, "BR-L-1"},
+		{model.VATCeutaMelilla, "BR-M-1"},
+	}
+	for _, cr := range categoryRules {
+		if lineCategories[cr.cat] && !breakdownCategories[cr.cat] {
+			add(cr.rule, "vat_breakdown",
+				fmt.Sprintf("invoice contains lines with VAT category %q but vat_breakdown has no entry for that category", cr.cat))
+		}
+	}
+
+	// BR-O-2: An invoice with a VAT breakdown entry "O" (out of scope) must not
+	// contain breakdown entries with any other VAT category.
+	if breakdownCategories[model.VATOutOfScope] && len(breakdownCategories) > 1 {
+		add("BR-O-2", "vat_breakdown",
+			"VAT category 'O' (out of scope) must not be mixed with other VAT categories in the breakdown")
+	}
+
+	// BR-O-3: If the VAT breakdown contains "O", all invoice lines must also be "O".
+	if breakdownCategories[model.VATOutOfScope] {
+		for i, l := range inv.Lines {
+			if l.VAT.Category != model.VATOutOfScope {
+				add("BR-O-3", fmt.Sprintf("lines[%d].vat.category", i),
+					fmt.Sprintf("VAT breakdown contains 'O' (out of scope) but line %d has category %q — all lines must be 'O'",
+						i, l.VAT.Category))
+			}
+		}
+	}
+
+	// BR-K-2: An invoice with a "K" (intra-community) VAT breakdown entry requires
+	// the seller VAT identifier (BT-31) and the buyer VAT identifier (BT-48) or
+	// buyer tax registration identifier (BT-49).
+	if breakdownCategories[model.VATIntraCommunity] {
+		if inv.Seller.VATID == "" {
+			add("BR-K-2", "seller.vat_id",
+				"intra-community supply (VAT category 'K') requires the seller VAT identifier (BT-31)")
+		}
+		if inv.Buyer.VATID == "" && inv.Buyer.TaxID == "" {
+			add("BR-K-2", "buyer.vat_id",
+				"intra-community supply (VAT category 'K') requires the buyer VAT identifier (BT-48) or tax registration identifier (BT-49)")
 		}
 	}
 
@@ -297,7 +404,7 @@ func checkVATBreakdown(inv *model.Invoice, add func(code, path, msg string)) {
 		// BR-S-6: Standard-rated VAT amount must equal TaxableAmount × Rate / 100.
 		if vb.Category == model.VATStandardRate {
 			expectedTax := model.Round2(vb.TaxableAmount * vb.Rate / 100)
-			if math.Abs(model.Round2(vb.TaxAmount)-expectedTax) > 0.01 {
+			if math.Abs(model.Round2(vb.TaxAmount)-expectedTax) > 0.005 {
 				add("BR-S-6", p+".tax_amount",
 					fmt.Sprintf("VAT amount (%.2f) must equal taxable_amount (%.2f) × rate (%.2f%%) = %.2f",
 						vb.TaxAmount, vb.TaxableAmount, vb.Rate, expectedTax))
@@ -310,7 +417,7 @@ func checkVATBreakdown(inv *model.Invoice, add func(code, path, msg string)) {
 	for _, vb := range inv.VATBreakdown {
 		taxableSum += vb.TaxableAmount
 	}
-	if math.Abs(model.Round2(taxableSum)-model.Round2(inv.Totals.TaxExclusiveAmount)) > 0.01 {
+	if math.Abs(model.Round2(taxableSum)-model.Round2(inv.Totals.TaxExclusiveAmount)) > 0.005 {
 		add("BR-CO-17", "vat_breakdown",
 			fmt.Sprintf("sum of vat_breakdown taxable amounts (%.2f) must equal tax_exclusive_amount (%.2f)",
 				taxableSum, inv.Totals.TaxExclusiveAmount))
@@ -321,7 +428,7 @@ func checkVATBreakdown(inv *model.Invoice, add func(code, path, msg string)) {
 	for _, vb := range inv.VATBreakdown {
 		taxSum += vb.TaxAmount
 	}
-	if math.Abs(model.Round2(taxSum)-model.Round2(inv.Totals.TaxAmount)) > 0.01 {
+	if math.Abs(model.Round2(taxSum)-model.Round2(inv.Totals.TaxAmount)) > 0.005 {
 		add("BR-CO-18", "vat_breakdown",
 			fmt.Sprintf("sum of vat_breakdown tax amounts (%.2f) must equal totals.tax_amount (%.2f)",
 				taxSum, inv.Totals.TaxAmount))

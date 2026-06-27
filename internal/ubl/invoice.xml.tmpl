@@ -157,7 +157,7 @@
     {{- if .Note }}
     <cbc:Note>{{ x .Note }}</cbc:Note>
     {{- end }}
-    <cbc:InvoicedQuantity unitCode="{{ .QuantityUnit }}">{{ qty .Quantity }}</cbc:InvoicedQuantity>
+    <cbc:InvoicedQuantity unitCode="{{ x .QuantityUnit }}">{{ qty .Quantity }}</cbc:InvoicedQuantity>
     <cbc:LineExtensionAmount currencyID="{{ $.Currency }}">{{ amt .NetAmount }}</cbc:LineExtensionAmount>
     {{- if .OrderLineRef }}
     <cac:OrderLineReference><cbc:LineID>{{ x .OrderLineRef }}</cbc:LineID></cac:OrderLineReference>
@@ -202,7 +202,7 @@
     <cac:Price>
       <cbc:PriceAmount currencyID="{{ $.Currency }}">{{ amt .Price.Amount }}</cbc:PriceAmount>
       {{- if .Price.BaseQuantity }}
-      <cbc:BaseQuantity unitCode="{{ .Price.BaseQuantityUnit }}">{{ qty .Price.BaseQuantity }}</cbc:BaseQuantity>
+      <cbc:BaseQuantity unitCode="{{ x .Price.BaseQuantityUnit }}">{{ qty .Price.BaseQuantity }}</cbc:BaseQuantity>
       {{- end }}
     </cac:Price>
   </cac:InvoiceLine>
