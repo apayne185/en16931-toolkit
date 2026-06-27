@@ -3,11 +3,15 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/apayne185/en16931-toolkit/internal/es"
@@ -26,7 +30,8 @@ func New() http.Handler {
 	return logging(mux)
 }
 
-// Listen starts the server on addr (e.g. ":8080") and blocks until stopped.
+// Listen starts the server on addr and blocks until SIGINT or SIGTERM is
+// received, then drains in-flight requests within a 5-second window.
 func Listen(addr string) error {
 	srv := &http.Server{
 		Addr:         addr,
@@ -35,8 +40,28 @@ func Listen(addr string) error {
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-	slog.Info("en16931 API listening", "addr", addr)
-	return srv.ListenAndServe()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		slog.Info("en16931 API listening", "addr", addr)
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			errCh <- err
+		}
+		close(errCh)
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		slog.Info("shutting down", "reason", ctx.Err())
+		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return srv.Shutdown(shutCtx)
+	}
 }
 
 type validationResponse struct {
