@@ -199,3 +199,19 @@ func TestRender_BadJSON(t *testing.T) {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
 }
+
+func TestRender_ContentDispositionSafe(t *testing.T) {
+	// Invoice numbers with quotes or CRLF must not break the Content-Disposition header.
+	evil := strings.ReplaceAll(validInvoiceJSON, `"INV-TEST-001"`, `"INV\"\r\nX-Injected: pwned"`)
+	rr := post(t, "/v1/invoices/render", evil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body)
+	}
+	cd := rr.Header().Get("Content-Disposition")
+	if strings.Contains(cd, "\r") || strings.Contains(cd, "\n") {
+		t.Errorf("Content-Disposition contains CRLF: %q", cd)
+	}
+	if strings.Count(cd, `"`) > 2 {
+		t.Errorf("Content-Disposition has unescaped quote: %q", cd)
+	}
+}

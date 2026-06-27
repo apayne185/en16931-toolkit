@@ -108,7 +108,7 @@ func handleRender(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xml"`, inv.Number))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xml"`, safeFilename(inv.Number)))
 	w.WriteHeader(http.StatusOK)
 	w.Write(xmlBytes)
 }
@@ -192,6 +192,19 @@ func decodeInvoice(w http.ResponseWriter, r *http.Request) (*model.Invoice, bool
 		return nil, false
 	}
 	return &inv, true
+}
+
+// safeFilename strips characters that are illegal or dangerous in a
+// Content-Disposition filename value: quotes break the header syntax,
+// CR/LF enable header injection.
+func safeFilename(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '"', '\\', '\r', '\n':
+			return '_'
+		}
+		return r
+	}, s)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
