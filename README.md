@@ -225,10 +225,10 @@ See [examples/](examples/) for complete working invoices:
 | BR-2 | Invoice number required |
 | BR-3 | Issue date required |
 | BR-4 | Type code required and in allowed set (380/381/384/386/389) |
-| BR-5 | Currency code required |
+| BR-5 | Currency code required and must be a valid ISO 4217 alphabetic code |
 | BR-6 | Seller name required |
 | BR-7 | Buyer name required |
-| BR-8 | Seller country code required |
+| BR-8 | Seller country code required and must be a valid ISO 3166-1 alpha-2 code; buyer country validated when present |
 | BR-9 | At least one invoice line required |
 | BR-10 | Buyer reference or purchase order reference required |
 | BR-16 | Invoice line ID required and unique |
@@ -275,6 +275,8 @@ See [examples/](examples/) for complete working invoices:
 | BR-CO-18 | Sum of VAT breakdown tax amounts = TaxAmount |
 
 ## Design notes
+
+**ISO 4217 and ISO 3166-1 validation.** BR-5 and BR-8 validate currency and country codes against embedded lookup maps (182 currency codes, 249 country codes), not just presence. A typo like `"eur"` or a made-up code like `"XX"` is caught at the rule level with a clear error message.
 
 **No external dependencies.** The entire toolkit uses Go's standard library only (`encoding/json`, `text/template`, `crypto/sha256`, `net/http`, `flag`). The UBL XML is produced by an embedded template ([`internal/ubl/invoice.xml.tmpl`](internal/ubl/invoice.xml.tmpl)), making the mapping between the semantic model and the XML syntax easy to audit and extend.
 

@@ -69,9 +69,12 @@ func checkStructural(inv *model.Invoice, add func(code, path, msg string)) {
 		}
 	}
 
-	// BR-5: An invoice shall have an Invoice currency code.
+	// BR-5: An invoice shall have an Invoice currency code (ISO 4217).
 	if inv.Currency == "" {
 		add("BR-5", "currency", "invoice currency code is required (ISO 4217, e.g. EUR)")
+	} else if !iso4217[inv.Currency] {
+		add("BR-5", "currency",
+			fmt.Sprintf("%q is not a recognised ISO 4217 currency code", inv.Currency))
 	}
 
 	// BR-6: An invoice shall have a Seller name.
@@ -84,9 +87,18 @@ func checkStructural(inv *model.Invoice, add func(code, path, msg string)) {
 		add("BR-7", "buyer.name", "buyer name is required")
 	}
 
-	// BR-8: An invoice shall have the Seller country code.
+	// BR-8: An invoice shall have the Seller country code (ISO 3166-1 alpha-2).
 	if inv.Seller.Address.Country == "" {
 		add("BR-8", "seller.address.country", "seller country code is required (ISO 3166-1 alpha-2)")
+	} else if !iso3166alpha2[inv.Seller.Address.Country] {
+		add("BR-8", "seller.address.country",
+			fmt.Sprintf("%q is not a recognised ISO 3166-1 alpha-2 country code", inv.Seller.Address.Country))
+	}
+
+	// Buyer country code — validated when present (EN 16931 §7.1 references ISO 3166-1).
+	if c := inv.Buyer.Address.Country; c != "" && !iso3166alpha2[c] {
+		add("BR-8", "buyer.address.country",
+			fmt.Sprintf("%q is not a recognised ISO 3166-1 alpha-2 country code", c))
 	}
 
 	// BR-9: An invoice shall have at least one invoice line.

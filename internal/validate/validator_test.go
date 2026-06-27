@@ -157,6 +157,58 @@ func TestValidate_InlineEdgeCases(t *testing.T) {
 		assertRuleAbsent(t, inv, "BR-10")
 	})
 
+	t.Run("BR-5: valid ISO 4217 currency passes", func(t *testing.T) {
+		for _, code := range []string{"EUR", "USD", "GBP", "JPY", "CHF", "SEK", "PLN"} {
+			inv := minimalValidInvoice()
+			inv.Currency = code
+			assertRuleAbsent(t, inv, "BR-5")
+		}
+	})
+
+	t.Run("BR-5: unknown currency code fails", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Currency = "ZZZ"
+		assertRuleFires(t, inv, "BR-5")
+	})
+
+	t.Run("BR-5: lowercase currency code fails", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Currency = "eur"
+		assertRuleFires(t, inv, "BR-5")
+	})
+
+	t.Run("BR-8: valid ISO 3166-1 alpha-2 seller country passes", func(t *testing.T) {
+		for _, code := range []string{"ES", "DE", "FR", "IT", "PT", "NL", "PL", "US"} {
+			inv := minimalValidInvoice()
+			inv.Seller.Address.Country = code
+			assertRuleAbsent(t, inv, "BR-8")
+		}
+	})
+
+	t.Run("BR-8: invalid seller country code fails", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Seller.Address.Country = "XX"
+		assertRuleFires(t, inv, "BR-8")
+	})
+
+	t.Run("BR-8: lowercase seller country code fails", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Seller.Address.Country = "es"
+		assertRuleFires(t, inv, "BR-8")
+	})
+
+	t.Run("BR-8: invalid buyer country code fails", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Buyer.Address.Country = "XX"
+		assertRuleFires(t, inv, "BR-8")
+	})
+
+	t.Run("BR-8: missing buyer country code passes (not required)", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Buyer.Address.Country = ""
+		assertRuleAbsent(t, inv, "BR-8")
+	})
+
 	t.Run("BR-16: duplicate line IDs", func(t *testing.T) {
 		inv := minimalValidInvoice()
 		inv.Lines = append(inv.Lines, inv.Lines[0]) // duplicate id "1"
