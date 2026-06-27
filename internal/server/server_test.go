@@ -62,8 +62,8 @@ func TestOpenAPISpec(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
-	if ct := rr.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/yaml") {
-		t.Errorf("expected application/yaml, got %q", ct)
+	if ct := rr.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/yaml") {
+		t.Errorf("expected text/yaml, got %q", ct)
 	}
 	body := rr.Body.String()
 	if !strings.Contains(body, "openapi: \"3.1.0\"") {

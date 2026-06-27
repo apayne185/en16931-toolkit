@@ -8,7 +8,7 @@ info:
     renders them as UBL 2.1 XML, and applies Spain's Veri*Factu CIUS
     (Real Decreto 1007/2023).
 
-    **Implemented rules:** 51 BR-* and BR-CO-* business rules including ISO 4217
+    **Implemented rules:** 52 BR-* and BR-CO-* business rules including ISO 4217
     currency code validation, ISO 3166-1 alpha-2 country code validation, and
     IBAN mod-97 checksum verification on credit transfer payment means.
 
@@ -25,7 +25,7 @@ paths:
       operationId: validateInvoice
       summary: Validate an invoice against EN 16931 business rules
       description: |
-        Runs all 51 implemented EN 16931 BR-* and BR-CO-* rules against the
+        Runs all 52 implemented EN 16931 BR-* and BR-CO-* rules against the
         submitted invoice. Returns the full list of violations on failure so
         clients can surface all errors in a single round-trip.
       requestBody:
@@ -119,6 +119,12 @@ paths:
                   - code: "BR-5"
                     path: "currency"
                     message: "\"EURO\" is not a recognised ISO 4217 currency code"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /v1/invoices/render:
     post:
@@ -227,8 +233,6 @@ paths:
                       name: "Software licence"
                     price:
                       amount: 1000.00
-              prev_hash: ""
-              prev_timestamp: ""
       responses:
         "200":
           description: Invoice is valid; chain record computed
@@ -258,6 +262,12 @@ paths:
                   - code: "ES-01"
                     path: "seller.vat_id"
                     message: "seller VAT ID must be a structurally valid Spanish NIF, CIF, or NIE"
+        "500":
+          description: Internal error computing chain record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /healthz:
     get:
@@ -287,7 +297,7 @@ paths:
         "200":
           description: OpenAPI 3.1 specification
           content:
-            application/yaml:
+            text/yaml:
               schema:
                 type: string
 
@@ -352,7 +362,7 @@ components:
           example: "ORD-2024-055"
         preceding_invoice_ref:
           type: string
-          description: "BT-25: Number of the invoice being corrected. Required when type_code is 381 or 384."
+          description: "BT-25: Number of the invoice being corrected. Required for type 381 (credit note) via BR-25. Also required for type 384 (corrected invoice) when using the `/v1/invoices/verifactu` endpoint (ES-04)."
           example: "INV-2023-099"
         notes:
           type: array
@@ -490,11 +500,11 @@ components:
         - reason
         - vat_category
         - amount
-      description: "BG-20 (allowance) or BG-21 (charge): Document-level price adjustment."
+      description: "BG-20 (allowance) or BG-21 (charge): Document-level price adjustment. Both allowances and charges require a reason (BR-36 / BR-41) and a VAT category code."
       properties:
         reason:
           type: string
-          description: "BT-97 / BT-104: Human-readable reason for the allowance or charge. Required (BR-36)."
+          description: "BT-97 / BT-104: Human-readable reason for the allowance or charge. Required for both allowances (BR-36) and charges (BR-41)."
           example: "Early payment discount"
         reason_code:
           type: string
@@ -794,11 +804,11 @@ components:
           $ref: "#/components/schemas/Invoice"
         prev_hash:
           type: string
-          description: "Hash field from the preceding invoice's chain record. Omit (or pass empty string) for the first invoice in a series."
+          description: "Hash field from the preceding invoice's chain record. Omit this field entirely for the first invoice in a series."
           example: "3C9D4F1A2B5E8C7D..."
         prev_timestamp:
           type: string
-          description: "Timestamp from the preceding invoice's chain record (DD-MM-YYYY HH:MM:SS). Omit for the first invoice."
+          description: "Timestamp from the preceding invoice's chain record (DD-MM-YYYY HH:MM:SS). Omit this field entirely for the first invoice in a series."
           example: "01-06-2024 09:00:00"
 
     VerifactuResponse:

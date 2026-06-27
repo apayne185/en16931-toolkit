@@ -167,6 +167,12 @@ func checkDocAllowancesCharges(inv *model.Invoice, add func(code, path, msg stri
 	for i, c := range inv.Charges {
 		p := fmt.Sprintf("charges[%d]", i)
 
+		// BR-41: A document level charge shall have a reason.
+		if c.Reason == "" {
+			add("BR-41", p+".reason",
+				"document-level charge must have a reason (BT-104)")
+		}
+
 		// BR-38: A document level charge shall have a VAT category code.
 		if c.VATCategory == "" {
 			add("BR-38", p+".vat_category",
@@ -324,10 +330,21 @@ func checkTotals(inv *model.Invoice, add func(code, path, msg string)) {
 }
 
 func checkVATBreakdown(inv *model.Invoice, add func(code, path, msg string)) {
-	// Collect the set of VAT categories used across all invoice lines.
-	lineCategories := map[model.VATCategoryCode]bool{}
+	// Collect the set of VAT categories used across lines, document allowances, and charges.
+	// EN 16931-1 §10.7: the breakdown requirement applies to all three sources.
+	usedCategories := map[model.VATCategoryCode]bool{}
 	for _, l := range inv.Lines {
-		lineCategories[l.VAT.Category] = true
+		usedCategories[l.VAT.Category] = true
+	}
+	for _, a := range inv.Allowances {
+		if a.VATCategory != "" {
+			usedCategories[a.VATCategory] = true
+		}
+	}
+	for _, c := range inv.Charges {
+		if c.VATCategory != "" {
+			usedCategories[c.VATCategory] = true
+		}
 	}
 
 	breakdownCategories := map[model.VATCategoryCode]bool{}
@@ -336,7 +353,7 @@ func checkVATBreakdown(inv *model.Invoice, add func(code, path, msg string)) {
 	}
 
 	// BR-S-1 / BR-Z-1 / BR-E-1 / BR-AE-1 / BR-K-1 / BR-G-1 / BR-O-1 / BR-L-1 / BR-M-1:
-	// Each VAT category used on a line must have a corresponding entry in the VAT breakdown.
+	// Each VAT category used on lines, allowances, or charges must have a breakdown entry.
 	// Ordered slice (not map) so error messages are always produced in spec order.
 	type catRule struct {
 		cat  model.VATCategoryCode
@@ -354,7 +371,7 @@ func checkVATBreakdown(inv *model.Invoice, add func(code, path, msg string)) {
 		{model.VATCeutaMelilla, "BR-M-1"},
 	}
 	for _, cr := range categoryRules {
-		if lineCategories[cr.cat] && !breakdownCategories[cr.cat] {
+		if usedCategories[cr.cat] && !breakdownCategories[cr.cat] {
 			add(cr.rule, "vat_breakdown",
 				fmt.Sprintf("invoice contains lines with VAT category %q but vat_breakdown has no entry for that category", cr.cat))
 		}

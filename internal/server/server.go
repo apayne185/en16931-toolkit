@@ -205,7 +205,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleOpenAPISpec(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+	w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write(docs.OpenAPISpec)
 }
@@ -233,7 +233,7 @@ func decodeInvoice(w http.ResponseWriter, r *http.Request) (*model.Invoice, bool
 func safeFilename(s string) string {
 	return strings.Map(func(r rune) rune {
 		switch r {
-		case '"', '\\', '\r', '\n':
+		case '"', '\\', '\r', '\n', 0:
 			return '_'
 		}
 		return r
@@ -268,4 +268,11 @@ type responseWriter struct {
 func (rw *responseWriter) WriteHeader(status int) {
 	rw.status = status
 	rw.ResponseWriter.WriteHeader(status)
+}
+
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	if rw.status == 0 {
+		rw.status = http.StatusOK
+	}
+	return rw.ResponseWriter.Write(b)
 }

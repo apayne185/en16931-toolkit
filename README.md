@@ -18,7 +18,7 @@ This toolkit implements the UBL 2.1 binding and the Spanish Veri\*Factu CIUS.
 
 ## Features
 
-- **EN 16931 validation** — 51 BR-\* and BR-CO-\* rules with precise error messages citing the rule code and failing field path
+- **EN 16931 validation** — 52 BR-\* and BR-CO-\* rules with precise error messages citing the rule code and failing field path
 - **UBL 2.1 rendering** — schema-conformant XML you can feed to a PEPPOL access point or an Italian SDI gateway, with full XML injection protection
 - **Spain Veri\*Factu CIUS** — seller NIF/CIF/NIE validation, SHA-256 invoice chain hashing, and AEAT QR verification URL (Real Decreto 1007/2023)
 - **HTTP API** — JSON REST API exposing all three operations
@@ -226,7 +226,7 @@ See [examples/](examples/) for complete working invoices:
 
 ## Implemented EN 16931 business rules
 
-51 of ~120 normative rules are currently implemented.
+52 of ~120 normative rules are currently implemented.
 
 | Code | Rule |
 |------|------|
@@ -251,6 +251,7 @@ See [examples/](examples/) for complete working invoices:
 | BR-36 | Document-level allowance must have a reason |
 | BR-37 | Document-level allowance must have a VAT category code |
 | BR-38 | Document-level charge must have a VAT category code |
+| BR-41 | Document-level charge must have a reason |
 | BR-39 | Document-level allowance amount must not be negative |
 | BR-42 | Document-level charge amount must not be negative |
 | BR-S-1 | Standard-rated lines must have a VAT breakdown entry |
