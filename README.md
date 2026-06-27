@@ -18,7 +18,7 @@ This toolkit implements the UBL 2.1 binding and the Spanish Veri\*Factu CIUS.
 
 ## Features
 
-- **EN 16931 validation** — 48 BR-\* and BR-CO-\* rules with precise error messages citing the rule code and failing field path
+- **EN 16931 validation** — 51 BR-\* and BR-CO-\* rules with precise error messages citing the rule code and failing field path
 - **UBL 2.1 rendering** — schema-conformant XML you can feed to a PEPPOL access point or an Italian SDI gateway, with full XML injection protection
 - **Spain Veri\*Factu CIUS** — seller NIF/CIF/NIE validation, SHA-256 invoice chain hashing, and AEAT QR verification URL (Real Decreto 1007/2023)
 - **HTTP API** — JSON REST API exposing all three operations
@@ -58,7 +58,7 @@ go build -o en16931 ./cmd/en16931
 ### Validation output
 
 ```
-✓  INV-2024-001 passes EN 16931:2017 (37 rules checked)
+✓  INV-2024-001 passes EN 16931:2017 (51 rules checked)
 ```
 
 ```
@@ -218,7 +218,7 @@ See [examples/](examples/) for complete working invoices:
 
 ## Implemented EN 16931 business rules
 
-48 of ~120 normative rules are currently implemented.
+51 of ~120 normative rules are currently implemented.
 
 | Code | Rule |
 |------|------|
@@ -240,8 +240,11 @@ See [examples/](examples/) for complete working invoices:
 | BR-25 | Credit notes must reference the preceding invoice |
 | BR-26 | Line VAT category code required |
 | BR-29 | Credit transfer payment (type 30/58) must carry an account identifier (IBAN) |
+| BR-36 | Document-level allowance must have a reason |
 | BR-37 | Document-level allowance must have a VAT category code |
 | BR-38 | Document-level charge must have a VAT category code |
+| BR-39 | Document-level allowance amount must not be negative |
+| BR-42 | Document-level charge amount must not be negative |
 | BR-S-1 | Standard-rated lines must have a VAT breakdown entry |
 | BR-S-2 | Standard-rated lines must have a non-zero VAT rate |
 | BR-S-3 | Standard-rated document allowance must have a non-zero VAT rate |
@@ -281,7 +284,7 @@ See [examples/](examples/) for complete working invoices:
 
 **Layered CIUS architecture.** EN 16931 is the baseline; countries layer a national extension (CIUS) on top. The Spain package (`internal/es`) calls `validate.Validate` first, then appends its own rules — exactly the same pattern used in production e-invoicing platforms. Adding a new country means adding a new package without touching the core.
 
-**Amounts as float64.** For a production system you'd want fixed-precision decimal arithmetic (`github.com/shopspring/decimal`). The validator tolerates up to 0.01 rounding error on each check to accommodate floating-point accumulation across many lines.
+**Amounts as float64.** For a production system you'd want fixed-precision decimal arithmetic (`github.com/shopspring/decimal`). Each arithmetic check uses a 0.005 threshold: since both operands are rounded to two decimal places, the minimum real discrepancy is 0.01 (one cent), and 0.01 > 0.005 is always true — so any genuine one-cent error is caught while float64 representation noise (≪ 0.001) is ignored.
 
 ## References
 

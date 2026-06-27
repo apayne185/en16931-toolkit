@@ -312,6 +312,42 @@ func TestValidate_NewRules(t *testing.T) {
 		assertRuleFires(t, inv, "BR-K-2")
 	})
 
+	t.Run("BR-36: document allowance missing reason", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Allowances = []model.AllowanceCharge{{VATCategory: model.VATStandardRate, VATRate: 21, Amount: 10}}
+		assertRuleFires(t, inv, "BR-36")
+	})
+
+	t.Run("BR-36: allowance with reason passes", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Allowances = []model.AllowanceCharge{{Reason: "Discount", VATCategory: model.VATStandardRate, VATRate: 21, Amount: 10}}
+		assertRuleAbsent(t, inv, "BR-36")
+	})
+
+	t.Run("BR-39: negative document allowance amount", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Allowances = []model.AllowanceCharge{{Reason: "Discount", VATCategory: model.VATStandardRate, VATRate: 21, Amount: -10}}
+		assertRuleFires(t, inv, "BR-39")
+	})
+
+	t.Run("BR-39: zero allowance amount is allowed", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Allowances = []model.AllowanceCharge{{Reason: "Discount", VATCategory: model.VATStandardRate, VATRate: 21, Amount: 0}}
+		assertRuleAbsent(t, inv, "BR-39")
+	})
+
+	t.Run("BR-42: negative document charge amount", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Charges = []model.AllowanceCharge{{Reason: "Handling", VATCategory: model.VATStandardRate, VATRate: 21, Amount: -5}}
+		assertRuleFires(t, inv, "BR-42")
+	})
+
+	t.Run("BR-42: positive charge amount passes", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Charges = []model.AllowanceCharge{{Reason: "Handling", VATCategory: model.VATStandardRate, VATRate: 21, Amount: 5}}
+		assertRuleAbsent(t, inv, "BR-42")
+	})
+
 	t.Run("BR-K-2: K breakdown with both IDs passes", func(t *testing.T) {
 		inv := minimalValidInvoice()
 		inv.Lines[0].VAT.Category = model.VATIntraCommunity

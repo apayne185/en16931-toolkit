@@ -195,7 +195,7 @@ func printErrors(errs []validate.Error) {
 
 func ruleCount() int {
 	rules := strings.Fields(`BR-2 BR-3 BR-4 BR-5 BR-6 BR-7 BR-8 BR-9 BR-10 BR-16 BR-18
-BR-19 BR-20 BR-21 BR-23 BR-25 BR-26 BR-29 BR-37 BR-38
+BR-19 BR-20 BR-21 BR-23 BR-25 BR-26 BR-29 BR-36 BR-37 BR-38 BR-39 BR-42
 BR-S-1 BR-S-2 BR-S-3 BR-S-4 BR-S-6 BR-Z-1 BR-Z-2
 BR-E-1 BR-E-2 BR-AE-1 BR-AE-3 BR-K-1 BR-K-2 BR-G-1
 BR-O-1 BR-O-2 BR-O-3 BR-L-1 BR-M-1
