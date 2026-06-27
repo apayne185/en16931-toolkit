@@ -294,6 +294,18 @@ func TestValidate_NewRules(t *testing.T) {
 		assertRuleAbsent(t, inv, "BR-23")
 	})
 
+	t.Run("BR-29: invalid IBAN fails", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.PaymentMeans = []model.PaymentMeans{{TypeCode: "58", AccountID: "NOT-AN-IBAN"}}
+		assertRuleFires(t, inv, "BR-29")
+	})
+
+	t.Run("BR-29: valid IBAN passes", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.PaymentMeans = []model.PaymentMeans{{TypeCode: "58", AccountID: "ES91 2100 0418 4502 0005 1332"}}
+		assertRuleAbsent(t, inv, "BR-29")
+	})
+
 	t.Run("BR-29: credit transfer without account ID", func(t *testing.T) {
 		inv := minimalValidInvoice()
 		inv.PaymentMeans = []model.PaymentMeans{{TypeCode: "58"}} // no AccountID

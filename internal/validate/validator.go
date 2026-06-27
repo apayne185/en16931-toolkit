@@ -118,12 +118,19 @@ func checkStructural(inv *model.Invoice, add func(code, path, msg string)) {
 			"seller must have at least one of: VAT ID (BT-31), tax registration ID (BT-32), or legal registration ID (BT-30)")
 	}
 
-	// BR-29: Credit transfer payment means must carry a payment account identifier.
+	// BR-29: Credit transfer payment means must carry a payment account identifier
+	// that is a structurally valid IBAN (ISO 13616-1 mod-97 checksum).
 	// UNCL4461 codes: 30 = credit transfer, 58 = SEPA credit transfer.
 	for i, pm := range inv.PaymentMeans {
-		if (pm.TypeCode == "30" || pm.TypeCode == "58") && pm.AccountID == "" {
-			add("BR-29", fmt.Sprintf("payment_means[%d].account_id", i),
-				fmt.Sprintf("payment means type %q (credit transfer) requires a payment account identifier (BT-84 IBAN)", pm.TypeCode))
+		p := fmt.Sprintf("payment_means[%d].account_id", i)
+		if pm.TypeCode == "30" || pm.TypeCode == "58" {
+			if pm.AccountID == "" {
+				add("BR-29", p,
+					fmt.Sprintf("payment means type %q (credit transfer) requires a payment account identifier (BT-84 IBAN)", pm.TypeCode))
+			} else if !validateIBAN(pm.AccountID) {
+				add("BR-29", p,
+					fmt.Sprintf("payment account identifier %q is not a valid IBAN (ISO 13616-1)", pm.AccountID))
+			}
 		}
 	}
 }
