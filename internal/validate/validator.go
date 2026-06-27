@@ -95,12 +95,6 @@ func checkStructural(inv *model.Invoice, add func(code, path, msg string)) {
 			fmt.Sprintf("%q is not a recognised ISO 3166-1 alpha-2 country code", inv.Seller.Address.Country))
 	}
 
-	// Buyer country code — validated when present (EN 16931 §7.1 references ISO 3166-1).
-	if c := inv.Buyer.Address.Country; c != "" && !iso3166alpha2[c] {
-		add("BR-8", "buyer.address.country",
-			fmt.Sprintf("%q is not a recognised ISO 3166-1 alpha-2 country code", c))
-	}
-
 	// BR-9: An invoice shall have at least one invoice line.
 	if len(inv.Lines) == 0 {
 		add("BR-9", "lines", "at least one invoice line is required")

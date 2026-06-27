@@ -276,7 +276,7 @@ See [examples/](examples/) for complete working invoices:
 
 ## Design notes
 
-**ISO 4217 and ISO 3166-1 validation.** BR-5 and BR-8 validate currency and country codes against embedded lookup maps (182 currency codes, 249 country codes), not just presence. A typo like `"eur"` or a made-up code like `"XX"` is caught at the rule level with a clear error message.
+**ISO 4217 and ISO 3166-1 validation.** BR-5 and BR-8 validate currency and country codes against embedded lookup maps (177 active ISO 4217 currency codes, 249 ISO 3166-1 alpha-2 country codes), not just presence. A typo like `"eur"` or a made-up code like `"XX"` is caught at the rule level with a clear error message.
 
 **No external dependencies.** The entire toolkit uses Go's standard library only (`encoding/json`, `text/template`, `crypto/sha256`, `net/http`, `flag`). The UBL XML is produced by an embedded template ([`internal/ubl/invoice.xml.tmpl`](internal/ubl/invoice.xml.tmpl)), making the mapping between the semantic model and the XML syntax easy to audit and extend.
 

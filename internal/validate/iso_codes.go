@@ -2,6 +2,7 @@ package validate
 
 // iso4217 is the set of active ISO 4217 alphabetic currency codes.
 // Source: ISO 4217 maintenance agency list (as of 2024).
+// Excluded: CUC (Cuban Convertible Peso, withdrawn 2021), XTS (reserved for testing).
 var iso4217 = map[string]bool{
 	"AED": true, "AFN": true, "ALL": true, "AMD": true, "ANG": true,
 	"AOA": true, "ARS": true, "AUD": true, "AWG": true, "AZN": true,
@@ -10,7 +11,7 @@ var iso4217 = map[string]bool{
 	"BRL": true, "BSD": true, "BTN": true, "BWP": true, "BYN": true,
 	"BZD": true, "CAD": true, "CDF": true, "CHE": true, "CHF": true,
 	"CHW": true, "CLF": true, "CLP": true, "CNY": true, "COP": true,
-	"COU": true, "CRC": true, "CUC": true, "CUP": true, "CVE": true,
+	"COU": true, "CRC": true, "CUP": true, "CVE": true,
 	"CZK": true, "DJF": true, "DKK": true, "DOP": true, "DZD": true,
 	"EGP": true, "ERN": true, "ETB": true, "EUR": true, "FJD": true,
 	"FKP": true, "GBP": true, "GEL": true, "GHS": true, "GIP": true,
@@ -37,7 +38,7 @@ var iso4217 = map[string]bool{
 	"VND": true, "VUV": true, "WST": true, "XAF": true, "XAG": true,
 	"XAU": true, "XBA": true, "XBB": true, "XBC": true, "XBD": true,
 	"XCD": true, "XDR": true, "XOF": true, "XPD": true, "XPF": true,
-	"XPT": true, "XSU": true, "XTS": true, "XUA": true, "XXX": true,
+	"XPT": true, "XSU": true, "XUA": true, "XXX": true,
 	"YER": true, "ZAR": true, "ZMW": true, "ZWL": true,
 }
 

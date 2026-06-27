@@ -197,16 +197,16 @@ func TestValidate_InlineEdgeCases(t *testing.T) {
 		assertRuleFires(t, inv, "BR-8")
 	})
 
-	t.Run("BR-8: invalid buyer country code fails", func(t *testing.T) {
+	t.Run("BR-5: withdrawn currency code CUC fails", func(t *testing.T) {
 		inv := minimalValidInvoice()
-		inv.Buyer.Address.Country = "XX"
-		assertRuleFires(t, inv, "BR-8")
+		inv.Currency = "CUC" // Cuban Convertible Peso, withdrawn 2021
+		assertRuleFires(t, inv, "BR-5")
 	})
 
-	t.Run("BR-8: missing buyer country code passes (not required)", func(t *testing.T) {
+	t.Run("BR-5: testing-reserved XTS fails", func(t *testing.T) {
 		inv := minimalValidInvoice()
-		inv.Buyer.Address.Country = ""
-		assertRuleAbsent(t, inv, "BR-8")
+		inv.Currency = "XTS" // ISO 4217 reserved for testing, not valid on invoices
+		assertRuleFires(t, inv, "BR-5")
 	})
 
 	t.Run("BR-16: duplicate line IDs", func(t *testing.T) {
