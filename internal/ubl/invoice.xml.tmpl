@@ -212,11 +212,6 @@
 
 {{- define "party" }}
     <cac:Party>
-      {{- if .VATID }}
-      <cac:PartyIdentification>
-        <cbc:ID schemeID="0088">{{ x .VATID }}</cbc:ID>
-      </cac:PartyIdentification>
-      {{- end }}
       <cac:PartyName>
         <cbc:Name>{{ x .Name }}</cbc:Name>
       </cac:PartyName>
