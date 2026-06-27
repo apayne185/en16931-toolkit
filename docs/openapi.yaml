@@ -1,0 +1,861 @@
+openapi: "3.1.0"
+
+info:
+  title: EN 16931 Toolkit
+  version: "1.0.0"
+  description: |
+    Validates invoices against the EN 16931:2017 European e-invoicing standard,
+    renders them as UBL 2.1 XML, and applies Spain's Veri*Factu CIUS
+    (Real Decreto 1007/2023).
+
+    **Implemented rules:** 51 BR-* and BR-CO-* business rules including ISO 4217
+    currency code validation, ISO 3166-1 alpha-2 country code validation, and
+    IBAN mod-97 checksum verification on credit transfer payment means.
+
+    All endpoints accept `Content-Type: application/json`. The render endpoint
+    returns `application/xml` on success.
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /v1/invoices/validate:
+    post:
+      operationId: validateInvoice
+      summary: Validate an invoice against EN 16931 business rules
+      description: |
+        Runs all 51 implemented EN 16931 BR-* and BR-CO-* rules against the
+        submitted invoice. Returns the full list of violations on failure so
+        clients can surface all errors in a single round-trip.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Invoice"
+            example:
+              number: "INV-2024-001"
+              issue_date: "2024-06-01"
+              due_date: "2024-06-30"
+              type_code: "380"
+              currency: "EUR"
+              buyer_reference: "PO-98765"
+              seller:
+                name: "Acme Software SL"
+                vat_id: "ESB12345674"
+                legal_id: "B12345674"
+                address:
+                  street: "Calle Gran Vía 1"
+                  city: "Madrid"
+                  post_code: "28013"
+                  country: "ES"
+              buyer:
+                name: "Widgets GmbH"
+                vat_id: "DE123456789"
+                address:
+                  city: "Berlin"
+                  country: "DE"
+              payment_means:
+                - type_code: "58"
+                  account_id: "ES91 2100 0418 4502 0005 1332"
+                  service_provider_id: "CAIXESBBXXX"
+              vat_breakdown:
+                - category: "S"
+                  rate: 21
+                  taxable_amount: 1000.00
+                  tax_amount: 210.00
+              totals:
+                line_net_total: 1000.00
+                tax_exclusive_amount: 1000.00
+                tax_amount: 210.00
+                tax_inclusive_amount: 1210.00
+                payable_amount: 1210.00
+              lines:
+                - id: "1"
+                  quantity: 10
+                  quantity_unit: "HUR"
+                  net_amount: 1000.00
+                  vat:
+                    category: "S"
+                    rate: 21
+                  item:
+                    name: "Consulting services"
+                  price:
+                    amount: 100.00
+      responses:
+        "200":
+          description: Invoice is conformant — all rules pass
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationResponse"
+              example:
+                valid: true
+        "400":
+          description: Request body is not valid JSON
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: Content-Type is not application/json
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Invoice fails one or more EN 16931 business rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationResponse"
+              example:
+                valid: false
+                errors:
+                  - code: "BR-CO-15"
+                    path: "totals.tax_inclusive_amount"
+                    message: "tax_inclusive_amount (130.00) must equal tax_exclusive_amount (100.00) + tax_amount (15.00) = 115.00"
+                  - code: "BR-5"
+                    path: "currency"
+                    message: "\"EURO\" is not a recognised ISO 4217 currency code"
+
+  /v1/invoices/render:
+    post:
+      operationId: renderInvoice
+      summary: Validate and render an invoice as UBL 2.1 XML
+      description: |
+        Validates the invoice first. If validation passes, returns a
+        schema-conformant UBL 2.1 Invoice XML document with full XML injection
+        protection on all free-text fields. If validation fails, returns the
+        same 422 JSON response as `/v1/invoices/validate`.
+
+        The `Content-Disposition` header contains a safe filename derived from
+        the invoice number (dangerous characters are sanitised).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Invoice"
+      responses:
+        "200":
+          description: UBL 2.1 XML document
+          headers:
+            Content-Disposition:
+              description: "`attachment; filename=\"{invoice_number}.xml\"`"
+              schema:
+                type: string
+          content:
+            application/xml:
+              schema:
+                type: string
+                description: UBL 2.1 Invoice XML conformant with EN 16931-3-2
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          description: Invoice fails EN 16931 validation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationResponse"
+        "500":
+          description: Internal rendering error (should not occur for valid invoices)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /v1/invoices/verifactu:
+    post:
+      operationId: verifactu
+      summary: Validate against EN 16931 + Spain CIUS and compute the Veri*Factu chain record
+      description: |
+        Applies the full EN 16931 rule set plus Spain-specific rules (ES-01 through ES-04):
+        - **ES-01** — Seller VAT ID must start with `ES` and pass NIF/CIF/NIE structural validation
+        - **ES-02** — Seller country must be `ES`
+        - **ES-03** — Invoice type code must map to a Veri*Factu TipoFactura
+        - **ES-04** — Corrected invoices (type 384) must reference the preceding invoice
+
+        On success, returns the SHA-256 chain record (Huella) and the AEAT QR
+        verification URL. Pass `prev_hash` and `prev_timestamp` from the preceding
+        invoice's response, or omit both for the first invoice in a series.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifactuRequest"
+            example:
+              invoice:
+                number: "INV-2024-001"
+                issue_date: "2024-06-01"
+                type_code: "380"
+                currency: "EUR"
+                buyer_reference: "PO-98765"
+                seller:
+                  name: "Acme Software SL"
+                  vat_id: "ESB12345674"
+                  address:
+                    country: "ES"
+                buyer:
+                  name: "Widgets GmbH"
+                  address:
+                    country: "DE"
+                vat_breakdown:
+                  - category: "S"
+                    rate: 21
+                    taxable_amount: 1000.00
+                    tax_amount: 210.00
+                totals:
+                  line_net_total: 1000.00
+                  tax_exclusive_amount: 1000.00
+                  tax_amount: 210.00
+                  tax_inclusive_amount: 1210.00
+                  payable_amount: 1210.00
+                lines:
+                  - id: "1"
+                    quantity: 1
+                    quantity_unit: "C62"
+                    net_amount: 1000.00
+                    vat:
+                      category: "S"
+                      rate: 21
+                    item:
+                      name: "Software licence"
+                    price:
+                      amount: 1000.00
+              prev_hash: ""
+              prev_timestamp: ""
+      responses:
+        "200":
+          description: Invoice is valid; chain record computed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifactuResponse"
+              example:
+                valid: true
+                hash_type: "01"
+                hash: "3C9D4F1A2B5E8C7D9F0A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1D2E"
+                timestamp: "01-06-2024 09:00:00"
+                qr_verify_url: "https://www2.agenciatributaria.gob.es/wlpl/TIKE-CONT/ValidarQR?fecha=01-06-2024&importe=1210.00&nif=B12345674&numserie=INV-2024-001"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "422":
+          description: Invoice fails EN 16931 or Spain CIUS validation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifactuResponse"
+              example:
+                valid: false
+                errors:
+                  - code: "ES-01"
+                    path: "seller.vat_id"
+                    message: "seller VAT ID must be a structurally valid Spanish NIF, CIF, or NIE"
+
+  /healthz:
+    get:
+      operationId: healthCheck
+      summary: Health check
+      description: Returns `{"status":"ok"}` if the server is running. Suitable for load-balancer probes.
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: ["ok"]
+              example:
+                status: ok
+
+  /openapi.yaml:
+    get:
+      operationId: getOpenAPISpec
+      summary: This OpenAPI specification
+      description: Returns the OpenAPI 3.1 YAML document describing this API.
+      responses:
+        "200":
+          description: OpenAPI 3.1 specification
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+components:
+  schemas:
+
+    Invoice:
+      type: object
+      required:
+        - number
+        - issue_date
+        - type_code
+        - currency
+        - seller
+        - buyer
+        - vat_breakdown
+        - totals
+        - lines
+      properties:
+        specification_id:
+          type: string
+          description: "BT-24: Business rules profile identifier (e.g. urn:cen.eu:en16931:2017)"
+          example: "urn:cen.eu:en16931:2017"
+        number:
+          type: string
+          description: "BT-1: Invoice number. Must be unique within the seller's series."
+          example: "INV-2024-001"
+        issue_date:
+          type: string
+          format: date
+          description: "BT-2: Invoice issue date (YYYY-MM-DD)."
+          example: "2024-06-01"
+        due_date:
+          type: ["string", "null"]
+          format: date
+          description: "BT-9: Payment due date (YYYY-MM-DD). Optional."
+          example: "2024-06-30"
+        type_code:
+          type: string
+          enum: ["380", "381", "384", "386", "389"]
+          description: |
+            BT-3: Invoice type code (UNTDID 1001).
+            - `380` Commercial invoice
+            - `381` Credit note
+            - `384` Corrected invoice
+            - `386` Prepayment invoice
+            - `389` Self-billed invoice
+          example: "380"
+        currency:
+          type: string
+          description: "BT-5: Invoice currency code (ISO 4217 alphabetic, e.g. EUR). Validated against the full active ISO 4217 list."
+          example: "EUR"
+          minLength: 3
+          maxLength: 3
+        buyer_reference:
+          type: string
+          description: "BT-10: Buyer's internal reference (e.g. cost centre). Either this or order_reference is required."
+          example: "PO-98765"
+        order_reference:
+          type: string
+          description: "BT-13: Purchase order reference number."
+          example: "ORD-2024-055"
+        preceding_invoice_ref:
+          type: string
+          description: "BT-25: Number of the invoice being corrected. Required when type_code is 381 or 384."
+          example: "INV-2023-099"
+        notes:
+          type: array
+          items:
+            type: string
+          description: "BT-22: Free-text invoice-level notes."
+        seller:
+          $ref: "#/components/schemas/Party"
+        buyer:
+          $ref: "#/components/schemas/Party"
+        payment_means:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentMeans"
+          description: "BG-16: Payment instructions. Credit transfer (type 30/58) requires a valid IBAN in account_id."
+        allowances:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllowanceCharge"
+          description: "BG-20: Document-level allowances (discounts). Each must have a reason, VAT category, and non-negative amount."
+        charges:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllowanceCharge"
+          description: "BG-21: Document-level charges. Each must have a VAT category and non-negative amount."
+        vat_breakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/VATBreakdown"
+          description: "BG-23: One entry per distinct VAT category+rate combination used across all lines."
+          minItems: 1
+        totals:
+          $ref: "#/components/schemas/Totals"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceLine"
+          description: "BG-25: Invoice lines. At least one is required."
+          minItems: 1
+
+    Party:
+      type: object
+      required:
+        - name
+        - address
+      description: Seller (BG-4) or buyer (BG-7). The same structure is used for both.
+      properties:
+        name:
+          type: string
+          description: "BT-27 / BT-44: Trading name."
+          example: "Acme Software SL"
+        legal_id:
+          type: string
+          description: "BT-30 / BT-47: Legal entity registration identifier (e.g. company registry number)."
+          example: "B12345674"
+        vat_id:
+          type: string
+          description: "BT-31 / BT-48: VAT identifier including country prefix (e.g. ESB12345674, DE123456789)."
+          example: "ESB12345674"
+        tax_id:
+          type: string
+          description: "BT-32 / BT-49: Non-VAT tax registration identifier."
+        address:
+          $ref: "#/components/schemas/Address"
+        contact_name:
+          type: string
+          description: "BT-41 / BT-56: Contact person name."
+        contact_email:
+          type: string
+          format: email
+          description: "BT-43 / BT-57: Contact email address."
+
+    Address:
+      type: object
+      required:
+        - country
+      description: "BG-5 (seller) / BG-8 (buyer): Postal address."
+      properties:
+        street:
+          type: string
+          description: "BT-35 / BT-50: Street name and number."
+          example: "Calle Gran Vía 1"
+        street2:
+          type: string
+          description: "BT-36 / BT-51: Additional address line."
+        city:
+          type: string
+          description: "BT-37 / BT-52: City or town name."
+          example: "Madrid"
+        post_code:
+          type: string
+          description: "BT-38 / BT-53: Post code."
+          example: "28013"
+        subdivision:
+          type: string
+          description: "BT-39 / BT-54: Country subdivision code (ISO 3166-2, e.g. ES-MD)."
+          example: "ES-MD"
+        country:
+          type: string
+          description: "BT-40 / BT-55: Country code (ISO 3166-1 alpha-2). Validated against the full ISO 3166-1 list for the seller; required for seller, optional for buyer."
+          example: "ES"
+          minLength: 2
+          maxLength: 2
+
+    PaymentMeans:
+      type: object
+      required:
+        - type_code
+      description: "BG-16: Instructions for how the buyer should pay."
+      properties:
+        type_code:
+          type: string
+          description: |
+            BT-81: Payment means code (UNCL4461).
+            Common values: `10` cash, `30` credit transfer, `48` card, `49` direct debit, `58` SEPA credit transfer.
+          example: "58"
+        account_id:
+          type: string
+          description: "BT-84: Payment account identifier (IBAN). Required for credit transfer (type 30/58). Validated with ISO 13616-1 mod-97 checksum."
+          example: "ES91 2100 0418 4502 0005 1332"
+        account_name:
+          type: string
+          description: "BT-85: Name of the payment account."
+        service_provider_id:
+          type: string
+          description: "BT-86: Payment service provider identifier (BIC/SWIFT code)."
+          example: "CAIXESBBXXX"
+        remittance_info:
+          type: string
+          description: "BT-83: Remittance information / payment reference."
+
+    AllowanceCharge:
+      type: object
+      required:
+        - reason
+        - vat_category
+        - amount
+      description: "BG-20 (allowance) or BG-21 (charge): Document-level price adjustment."
+      properties:
+        reason:
+          type: string
+          description: "BT-97 / BT-104: Human-readable reason for the allowance or charge. Required (BR-36)."
+          example: "Early payment discount"
+        reason_code:
+          type: string
+          description: "BT-98 / BT-105: Coded reason (UNCL7161, e.g. 95=discount, SAP=administration)."
+          example: "95"
+        vat_category:
+          $ref: "#/components/schemas/VATCategoryCode"
+        vat_rate:
+          type: number
+          format: double
+          description: "BT-96 / BT-103: VAT rate percentage. Required when vat_category is 'S'."
+          example: 21
+        amount:
+          type: number
+          format: double
+          description: "BT-92 / BT-99: Allowance or charge amount (must be ≥ 0)."
+          example: 50.00
+          minimum: 0
+
+    VATBreakdown:
+      type: object
+      required:
+        - category
+        - taxable_amount
+        - tax_amount
+      description: "BG-23: Summary row for one VAT category+rate combination."
+      properties:
+        category:
+          $ref: "#/components/schemas/VATCategoryCode"
+        rate:
+          type: number
+          format: double
+          description: "BT-119: VAT rate percentage. Use 0 for exempt/reverse-charge/out-of-scope categories."
+          example: 21
+        taxable_amount:
+          type: number
+          format: double
+          description: "BT-116: Net amount subject to this VAT category."
+          example: 1000.00
+        tax_amount:
+          type: number
+          format: double
+          description: "BT-117: VAT amount (must be 0 for AE, E, Z, G, O, K categories)."
+          example: 210.00
+        exemption_reason:
+          type: string
+          description: "BT-120: Exemption reason text. Used when category is 'E'."
+          example: "Exempt pursuant to Article 20 VAT Directive"
+        exemption_reason_code:
+          type: string
+          description: "BT-121: Exemption reason code (VATEX-EU-* codes). Used when category is 'E' or 'AE'."
+          example: "VATEX-EU-AE"
+
+    Totals:
+      type: object
+      required:
+        - line_net_total
+        - tax_exclusive_amount
+        - tax_amount
+        - tax_inclusive_amount
+        - payable_amount
+      description: |
+        BG-22: Document monetary totals. All values must be arithmetically consistent:
+        - `tax_exclusive_amount` = `line_net_total` − `allowance_total` + `charge_total`
+        - `tax_inclusive_amount` = `tax_exclusive_amount` + `tax_amount`
+        - `payable_amount` = `tax_inclusive_amount` − `prepaid_amount` + `rounding_amount`
+      properties:
+        line_net_total:
+          type: number
+          format: double
+          description: "BT-106: Sum of all invoice line net amounts."
+          example: 1000.00
+        allowance_total:
+          type: number
+          format: double
+          description: "BT-107: Sum of document-level allowance amounts."
+          example: 0.00
+        charge_total:
+          type: number
+          format: double
+          description: "BT-108: Sum of document-level charge amounts."
+          example: 0.00
+        tax_exclusive_amount:
+          type: number
+          format: double
+          description: "BT-109: Invoice total excluding VAT."
+          example: 1000.00
+        tax_amount:
+          type: number
+          format: double
+          description: "BT-110: Total VAT amount."
+          example: 210.00
+        tax_inclusive_amount:
+          type: number
+          format: double
+          description: "BT-112: Invoice total including VAT."
+          example: 1210.00
+        prepaid_amount:
+          type: number
+          format: double
+          description: "BT-113: Amount already paid (e.g. deposit)."
+          example: 0.00
+        rounding_amount:
+          type: number
+          format: double
+          description: "BT-114: Rounding adjustment to reach a round payable total."
+          example: 0.00
+        payable_amount:
+          type: number
+          format: double
+          description: "BT-115: Amount the buyer owes."
+          example: 1210.00
+
+    InvoiceLine:
+      type: object
+      required:
+        - id
+        - quantity
+        - quantity_unit
+        - net_amount
+        - vat
+        - item
+        - price
+      description: "BG-25: A single line item on the invoice."
+      properties:
+        id:
+          type: string
+          description: "BT-126: Line identifier. Must be unique within the invoice."
+          example: "1"
+        note:
+          type: string
+          description: "BT-127: Free-text line-level note."
+        quantity:
+          type: number
+          format: double
+          description: "BT-129: Quantity of goods or services."
+          example: 10
+        quantity_unit:
+          type: string
+          description: "BT-130: Unit of measure code (UN/ECE Rec 20). Common codes: C62=each, HUR=hour, MON=month, KGM=kilogram."
+          example: "HUR"
+        net_amount:
+          type: number
+          format: double
+          description: "BT-131: Line net amount = quantity × unit price − line allowances + line charges."
+          example: 1000.00
+        order_line_ref:
+          type: string
+          description: "BT-132: Reference to the corresponding order line."
+        allowances:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineAllowanceCharge"
+          description: "BG-27: Line-level allowances."
+        charges:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineAllowanceCharge"
+          description: "BG-28: Line-level charges."
+        vat:
+          $ref: "#/components/schemas/LineVAT"
+        item:
+          $ref: "#/components/schemas/Item"
+        price:
+          $ref: "#/components/schemas/Price"
+
+    LineAllowanceCharge:
+      type: object
+      required:
+        - amount
+      description: "BG-27 (allowance) or BG-28 (charge): Line-level price adjustment."
+      properties:
+        amount:
+          type: number
+          format: double
+          description: Adjustment amount.
+          example: 10.00
+        reason:
+          type: string
+          description: Human-readable reason.
+          example: "Volume discount"
+        reason_code:
+          type: string
+          description: Coded reason (UNCL7161).
+
+    LineVAT:
+      type: object
+      required:
+        - category
+      description: "BG-30: VAT classification for this line."
+      properties:
+        category:
+          $ref: "#/components/schemas/VATCategoryCode"
+        rate:
+          type: number
+          format: double
+          description: "BT-152: VAT rate percentage. Required when category is 'S'."
+          example: 21
+
+    Item:
+      type: object
+      required:
+        - name
+      description: "BG-31: Product or service being invoiced."
+      properties:
+        name:
+          type: string
+          description: "BT-153: Item name. Required."
+          example: "Consulting services"
+        description:
+          type: string
+          description: "BT-154: Longer item description."
+        seller_id:
+          type: string
+          description: "BT-155: Seller's own item identifier (SKU/article number)."
+        standard_id:
+          type: string
+          description: "BT-157: Standard item identifier (e.g. GTIN-13, schemeID 0160)."
+
+    Price:
+      type: object
+      required:
+        - amount
+      description: "BG-29: Unit pricing information."
+      properties:
+        amount:
+          type: number
+          format: double
+          description: "BT-146: Net unit price after any item-level discount. Must not be negative."
+          example: 100.00
+          minimum: 0
+        base_quantity:
+          type: number
+          format: double
+          description: "BT-149: Base quantity the price applies to (defaults to 1 if omitted)."
+          example: 1
+        base_quantity_unit:
+          type: string
+          description: "BT-150: Unit of measure for the base quantity (UN/ECE Rec 20)."
+          example: "HUR"
+
+    VATCategoryCode:
+      type: string
+      enum: ["S", "Z", "E", "AE", "K", "G", "O", "L", "M"]
+      description: |
+        VAT category code (EN 16931 UNCL5305):
+        - `S` Standard rate
+        - `Z` Zero rated
+        - `E` Exempt
+        - `AE` Reverse charge (intra-EU B2B)
+        - `K` Intra-community supply (EEA goods)
+        - `G` Free export
+        - `O` Outside scope of VAT
+        - `L` Canary Islands IGIC
+        - `M` Ceuta/Melilla IPSI
+      example: "S"
+
+    ValidationResponse:
+      type: object
+      required:
+        - valid
+      properties:
+        valid:
+          type: boolean
+          description: "`true` if the invoice passes all implemented rules."
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationError"
+          description: "Present and non-empty when `valid` is `false`."
+
+    ValidationError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: "EN 16931 rule code (e.g. BR-CO-15, BR-5)."
+          example: "BR-CO-15"
+        path:
+          type: string
+          description: "Dot-notation path to the offending field."
+          example: "totals.tax_inclusive_amount"
+        message:
+          type: string
+          description: "Human-readable description of the violation."
+          example: "tax_inclusive_amount (130.00) must equal tax_exclusive_amount (100.00) + tax_amount (15.00) = 115.00"
+
+    VerifactuRequest:
+      type: object
+      required:
+        - invoice
+      properties:
+        invoice:
+          $ref: "#/components/schemas/Invoice"
+        prev_hash:
+          type: string
+          description: "Hash field from the preceding invoice's chain record. Omit (or pass empty string) for the first invoice in a series."
+          example: "3C9D4F1A2B5E8C7D..."
+        prev_timestamp:
+          type: string
+          description: "Timestamp from the preceding invoice's chain record (DD-MM-YYYY HH:MM:SS). Omit for the first invoice."
+          example: "01-06-2024 09:00:00"
+
+    VerifactuResponse:
+      type: object
+      required:
+        - valid
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationError"
+          description: "Present when `valid` is `false`."
+        hash_type:
+          type: string
+          description: "AEAT algorithm code. Always `01` (SHA-256)."
+          example: "01"
+        hash:
+          type: string
+          description: "SHA-256 fingerprint of this invoice (uppercase hex, 64 characters). Feed as `prev_hash` to the next invoice."
+          example: "3C9D4F1A2B5E8C7D9F0A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1D2E"
+        timestamp:
+          type: string
+          description: "When this chain record was computed (DD-MM-YYYY HH:MM:SS). Feed as `prev_timestamp` to the next invoice."
+          example: "01-06-2024 09:00:00"
+        qr_verify_url:
+          type: string
+          format: uri
+          description: "AEAT URL for recipient QR verification. Constructed safely via url.Values to prevent injection."
+          example: "https://www2.agenciatributaria.gob.es/wlpl/TIKE-CONT/ValidarQR?fecha=01-06-2024&importe=1210.00&nif=B12345674&numserie=INV-2024-001"
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message.
+          example: "invalid JSON: unexpected end of JSON input"
+
+  responses:
+    BadRequest:
+      description: Request body is not valid JSON
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "invalid JSON: unexpected end of JSON input"
+
+    UnsupportedMediaType:
+      description: Content-Type header is not application/json
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "Content-Type must be application/json"

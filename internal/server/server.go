@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/apayne185/en16931-toolkit/docs"
 	"github.com/apayne185/en16931-toolkit/internal/es"
 	"github.com/apayne185/en16931-toolkit/internal/model"
 	"github.com/apayne185/en16931-toolkit/internal/ubl"
@@ -27,6 +28,7 @@ func New() http.Handler {
 	mux.HandleFunc("POST /v1/invoices/render", handleRender)
 	mux.HandleFunc("POST /v1/invoices/verifactu", handleVerifactu)
 	mux.HandleFunc("GET /healthz", handleHealth)
+	mux.HandleFunc("GET /openapi.yaml", handleOpenAPISpec)
 	return logging(mux)
 }
 
@@ -200,6 +202,12 @@ func handleVerifactu(w http.ResponseWriter, r *http.Request) {
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func handleOpenAPISpec(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(docs.OpenAPISpec)
 }
 
 const maxBodyBytes = 1 << 20 // 1 MiB — invoices are never this large

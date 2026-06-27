@@ -55,6 +55,25 @@ const validInvoiceJSON = `{
   }]
 }`
 
+func TestOpenAPISpec(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	if ct := rr.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/yaml") {
+		t.Errorf("expected application/yaml, got %q", ct)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "openapi: \"3.1.0\"") {
+		t.Error("response should contain OpenAPI version declaration")
+	}
+	if !strings.Contains(body, "/v1/invoices/validate") {
+		t.Error("response should document the validate endpoint")
+	}
+}
+
 func TestHealthz(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rr := httptest.NewRecorder()

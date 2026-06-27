@@ -136,6 +136,14 @@ curl -s -X POST http://localhost:8080/v1/invoices/verifactu \
 }
 ```
 
+### `GET /openapi.yaml`
+
+Returns this API's [OpenAPI 3.1 specification](docs/openapi.yaml) as YAML — useful for generating client SDKs or importing into tools like Swagger UI or Postman.
+
+```bash
+curl http://localhost:8080/openapi.yaml
+```
+
 ### `GET /healthz`
 
 ```bash
