@@ -3,11 +3,15 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/apayne185/en16931-toolkit/internal/es"
@@ -26,7 +30,8 @@ func New() http.Handler {
 	return logging(mux)
 }
 
-// Listen starts the server on addr (e.g. ":8080") and blocks until stopped.
+// Listen starts the server on addr and blocks until SIGINT or SIGTERM is
+// received, then drains in-flight requests within a 5-second window.
 func Listen(addr string) error {
 	srv := &http.Server{
 		Addr:         addr,
@@ -35,8 +40,28 @@ func Listen(addr string) error {
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-	log.Printf("en16931 API listening on %s", addr)
-	return srv.ListenAndServe()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		slog.Info("en16931 API listening", "addr", addr)
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			errCh <- err
+		}
+		close(errCh)
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		slog.Info("shutting down", "reason", ctx.Err())
+		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return srv.Shutdown(shutCtx)
+	}
 }
 
 type validationResponse struct {
@@ -108,7 +133,7 @@ func handleRender(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xml"`, inv.Number))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xml"`, safeFilename(inv.Number)))
 	w.WriteHeader(http.StatusOK)
 	w.Write(xmlBytes)
 }
@@ -194,6 +219,19 @@ func decodeInvoice(w http.ResponseWriter, r *http.Request) (*model.Invoice, bool
 	return &inv, true
 }
 
+// safeFilename strips characters that are illegal or dangerous in a
+// Content-Disposition filename value: quotes break the header syntax,
+// CR/LF enable header injection.
+func safeFilename(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '"', '\\', '\r', '\n':
+			return '_'
+		}
+		return r
+	}, s)
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -210,7 +248,7 @@ func logging(next http.Handler) http.Handler {
 		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
 		start := time.Now()
 		next.ServeHTTP(rw, r)
-		log.Printf("%s %s %d %s", r.Method, r.URL.Path, rw.status, time.Since(start))
+		slog.Info("request", "method", r.Method, "path", r.URL.Path, "status", rw.status, "duration", time.Since(start))
 	})
 }
 

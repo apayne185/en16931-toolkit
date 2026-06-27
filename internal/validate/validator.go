@@ -69,9 +69,12 @@ func checkStructural(inv *model.Invoice, add func(code, path, msg string)) {
 		}
 	}
 
-	// BR-5: An invoice shall have an Invoice currency code.
+	// BR-5: An invoice shall have an Invoice currency code (ISO 4217).
 	if inv.Currency == "" {
 		add("BR-5", "currency", "invoice currency code is required (ISO 4217, e.g. EUR)")
+	} else if !iso4217[inv.Currency] {
+		add("BR-5", "currency",
+			fmt.Sprintf("%q is not a recognised ISO 4217 currency code", inv.Currency))
 	}
 
 	// BR-6: An invoice shall have a Seller name.
@@ -84,9 +87,12 @@ func checkStructural(inv *model.Invoice, add func(code, path, msg string)) {
 		add("BR-7", "buyer.name", "buyer name is required")
 	}
 
-	// BR-8: An invoice shall have the Seller country code.
+	// BR-8: An invoice shall have the Seller country code (ISO 3166-1 alpha-2).
 	if inv.Seller.Address.Country == "" {
 		add("BR-8", "seller.address.country", "seller country code is required (ISO 3166-1 alpha-2)")
+	} else if !iso3166alpha2[inv.Seller.Address.Country] {
+		add("BR-8", "seller.address.country",
+			fmt.Sprintf("%q is not a recognised ISO 3166-1 alpha-2 country code", inv.Seller.Address.Country))
 	}
 
 	// BR-9: An invoice shall have at least one invoice line.
@@ -112,12 +118,19 @@ func checkStructural(inv *model.Invoice, add func(code, path, msg string)) {
 			"seller must have at least one of: VAT ID (BT-31), tax registration ID (BT-32), or legal registration ID (BT-30)")
 	}
 
-	// BR-29: Credit transfer payment means must carry a payment account identifier.
+	// BR-29: Credit transfer payment means must carry a payment account identifier
+	// that is a structurally valid IBAN (ISO 13616-1 mod-97 checksum).
 	// UNCL4461 codes: 30 = credit transfer, 58 = SEPA credit transfer.
 	for i, pm := range inv.PaymentMeans {
-		if (pm.TypeCode == "30" || pm.TypeCode == "58") && pm.AccountID == "" {
-			add("BR-29", fmt.Sprintf("payment_means[%d].account_id", i),
-				fmt.Sprintf("payment means type %q (credit transfer) requires a payment account identifier (BT-84 IBAN)", pm.TypeCode))
+		p := fmt.Sprintf("payment_means[%d].account_id", i)
+		if pm.TypeCode == "30" || pm.TypeCode == "58" {
+			if pm.AccountID == "" {
+				add("BR-29", p,
+					fmt.Sprintf("payment means type %q (credit transfer) requires a payment account identifier (BT-84 IBAN)", pm.TypeCode))
+			} else if !validateIBAN(pm.AccountID) {
+				add("BR-29", p,
+					fmt.Sprintf("payment account identifier %q is not a valid IBAN (ISO 13616-1)", pm.AccountID))
+			}
 		}
 	}
 }
