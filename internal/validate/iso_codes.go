@@ -2,7 +2,11 @@ package validate
 
 // iso4217 is the set of active ISO 4217 alphabetic currency codes.
 // Source: ISO 4217 maintenance agency list (as of 2024).
-// Excluded: CUC (Cuban Convertible Peso, withdrawn 2021), XTS (reserved for testing).
+// Excluded: CUC (Cuban Convertible Peso, withdrawn 2021), XTS (reserved for testing only).
+// Included deliberately: fund codes (BOV, CHE, CHW, USN, UYI, UYW, MXV, CLF, COU, XBA–XBD,
+// XSU, XUA), precious metals (XAG, XAU, XPD, XPT), and XXX (no currency) — EN 16931 BR-5
+// requires an ISO 4217 code without further qualification, so these are spec-valid even if
+// unusual on commercial invoices.
 var iso4217 = map[string]bool{
 	"AED": true, "AFN": true, "ALL": true, "AMD": true, "ANG": true,
 	"AOA": true, "ARS": true, "AUD": true, "AWG": true, "AZN": true,
@@ -44,6 +48,8 @@ var iso4217 = map[string]bool{
 
 // iso3166alpha2 is the set of ISO 3166-1 alpha-2 country codes.
 // Source: ISO 3166 maintenance agency (as of 2024).
+// Excluded: XK (Kosovo) — widely used in practice and accepted by EU institutions,
+// but not a formal ISO 3166-1 assignment; accepting it would go beyond the spec.
 var iso3166alpha2 = map[string]bool{
 	"AD": true, "AE": true, "AF": true, "AG": true, "AI": true,
 	"AL": true, "AM": true, "AO": true, "AQ": true, "AR": true,

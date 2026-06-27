@@ -185,6 +185,18 @@ func TestValidate_InlineEdgeCases(t *testing.T) {
 		}
 	})
 
+	t.Run("BR-8: empty seller country fires required message", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Seller.Address.Country = ""
+		assertRuleFires(t, inv, "BR-8")
+	})
+
+	t.Run("BR-8: XK (Kosovo) rejected — not a formal ISO 3166-1 code", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Seller.Address.Country = "XK"
+		assertRuleFires(t, inv, "BR-8")
+	})
+
 	t.Run("BR-8: invalid seller country code fails", func(t *testing.T) {
 		inv := minimalValidInvoice()
 		inv.Seller.Address.Country = "XX"
@@ -195,6 +207,19 @@ func TestValidate_InlineEdgeCases(t *testing.T) {
 		inv := minimalValidInvoice()
 		inv.Seller.Address.Country = "es"
 		assertRuleFires(t, inv, "BR-8")
+	})
+
+	t.Run("BR-5: four-character code EURO fails", func(t *testing.T) {
+		// Common typo — ISO 4217 codes are exactly three letters.
+		inv := minimalValidInvoice()
+		inv.Currency = "EURO"
+		assertRuleFires(t, inv, "BR-5")
+	})
+
+	t.Run("BR-5: XXX (no-currency) passes — spec does not exclude it", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Currency = "XXX"
+		assertRuleAbsent(t, inv, "BR-5")
 	})
 
 	t.Run("BR-5: withdrawn currency code CUC fails", func(t *testing.T) {
@@ -490,7 +515,10 @@ func minimalValidInvoice() *model.Invoice {
 		Currency:       "EUR",
 		BuyerReference: "PO-1",
 		Seller: model.Party{
-			Name:  "Seller Co",
+			Name: "Seller Co",
+			// ESB99999999 is a structurally invalid Spanish CIF (wrong check digit).
+			// That is intentional: these tests only call validate.Validate, which does
+			// not run Spain-specific NIF/CIF rules. Use a real CIF in es_test fixtures.
 			VATID: "ESB99999999",
 			Address: model.Address{
 				Country: "ES",

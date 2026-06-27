@@ -228,7 +228,7 @@ See [examples/](examples/) for complete working invoices:
 | BR-5 | Currency code required and must be a valid ISO 4217 alphabetic code |
 | BR-6 | Seller name required |
 | BR-7 | Buyer name required |
-| BR-8 | Seller country code required and must be a valid ISO 3166-1 alpha-2 code; buyer country validated when present |
+| BR-8 | Seller country code required (BT-40) and must be a valid ISO 3166-1 alpha-2 code |
 | BR-9 | At least one invoice line required |
 | BR-10 | Buyer reference or purchase order reference required |
 | BR-16 | Invoice line ID required and unique |
