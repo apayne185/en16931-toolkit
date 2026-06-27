@@ -3,6 +3,7 @@ package validate_test
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/apayne185/en16931-toolkit/internal/model"
@@ -21,6 +22,38 @@ func loadFixture(t *testing.T, name string) *model.Invoice {
 		t.Fatalf("decode fixture %s: %v", name, err)
 	}
 	return &inv
+}
+
+// TestValidate_Examples validates every JSON file under examples/ at the repo
+// root, ensuring published examples stay conformant as the validator evolves.
+func TestValidate_Examples(t *testing.T) {
+	entries, err := os.ReadDir("../../examples")
+	if err != nil {
+		t.Fatalf("cannot read examples dir: %v", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+			continue
+		}
+		t.Run(e.Name(), func(t *testing.T) {
+			f, err := os.Open(filepath.Join("../../examples", e.Name()))
+			if err != nil {
+				t.Fatalf("open: %v", err)
+			}
+			defer f.Close()
+			var inv model.Invoice
+			if err := json.NewDecoder(f).Decode(&inv); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			errs := validate.Validate(&inv)
+			if len(errs) != 0 {
+				t.Errorf("expected 0 errors, got %d:", len(errs))
+				for _, e := range errs {
+					t.Errorf("  %s", e)
+				}
+			}
+		})
+	}
 }
 
 // TestValidate_Pass checks that all known-valid examples produce zero errors.
