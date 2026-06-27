@@ -5,7 +5,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -35,7 +35,7 @@ func Listen(addr string) error {
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-	log.Printf("en16931 API listening on %s", addr)
+	slog.Info("en16931 API listening", "addr", addr)
 	return srv.ListenAndServe()
 }
 
@@ -223,7 +223,7 @@ func logging(next http.Handler) http.Handler {
 		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
 		start := time.Now()
 		next.ServeHTTP(rw, r)
-		log.Printf("%s %s %d %s", r.Method, r.URL.Path, rw.status, time.Since(start))
+		slog.Info("request", "method", r.Method, "path", r.URL.Path, "status", rw.status, "duration", time.Since(start))
 	})
 }
 
