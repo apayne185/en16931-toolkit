@@ -373,7 +373,7 @@ func checkVATBreakdown(inv *model.Invoice, add func(code, path, msg string)) {
 	for _, cr := range categoryRules {
 		if usedCategories[cr.cat] && !breakdownCategories[cr.cat] {
 			add(cr.rule, "vat_breakdown",
-				fmt.Sprintf("invoice contains lines with VAT category %q but vat_breakdown has no entry for that category", cr.cat))
+				fmt.Sprintf("invoice contains lines, allowances, or charges with VAT category %q but vat_breakdown has no entry for that category", cr.cat))
 		}
 	}
 

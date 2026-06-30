@@ -336,6 +336,12 @@ func TestValidate_NewRules(t *testing.T) {
 		assertRuleFires(t, inv, "BR-38")
 	})
 
+	t.Run("BR-41: document charge missing reason", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Charges = []model.AllowanceCharge{{VATCategory: model.VATStandardRate, VATRate: 21, Amount: 5}}
+		assertRuleFires(t, inv, "BR-41")
+	})
+
 	t.Run("BR-S-3: standard-rated allowance with zero rate", func(t *testing.T) {
 		inv := minimalValidInvoice()
 		inv.Allowances = []model.AllowanceCharge{
