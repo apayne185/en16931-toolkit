@@ -476,6 +476,50 @@ func TestValidate_NewRules(t *testing.T) {
 		assertRuleAbsent(t, inv, "BR-42")
 	})
 
+	t.Run("BR-19: base_quantity != 1 changes expected net", func(t *testing.T) {
+		// 100 units × 10.00/10 = 100.00 net; setting net to 1000.00 should fire BR-19.
+		inv := minimalValidInvoice()
+		inv.Lines[0].Quantity = 100
+		inv.Lines[0].Price.Amount = 10.00
+		inv.Lines[0].Price.BaseQuantity = 10
+		inv.Lines[0].NetAmount = 1000.00 // wrong: correct is 100 * 10 / 10 = 100.00
+		assertRuleFires(t, inv, "BR-19")
+	})
+
+	t.Run("BR-19: base_quantity != 1 passes when net is correct", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		inv.Lines[0].Quantity = 100
+		inv.Lines[0].Price.Amount = 10.00
+		inv.Lines[0].Price.BaseQuantity = 10
+		inv.Lines[0].NetAmount = 100.00 // correct: 100 * 10 / 10 = 100.00
+		assertRuleAbsent(t, inv, "BR-19")
+	})
+
+	t.Run("BR-S-1: S-category allowance without S breakdown entry fires", func(t *testing.T) {
+		// Invoice has only AE lines but an S-category document allowance —
+		// the breakdown must still contain an S entry.
+		inv := minimalValidInvoice()
+		inv.Lines[0].VAT.Category = model.VATReverseCharge
+		inv.Lines[0].VAT.Rate = 0
+		inv.VATBreakdown = []model.VATBreakdown{
+			{Category: model.VATReverseCharge, TaxableAmount: 100, TaxAmount: 0},
+		}
+		inv.Totals.TaxAmount = 0
+		inv.Totals.TaxInclusiveAmount = 100
+		inv.Totals.PayableAmount = 100
+		inv.Allowances = []model.AllowanceCharge{
+			{Reason: "Discount", VATCategory: model.VATStandardRate, VATRate: 21, Amount: 10},
+		}
+		assertRuleFires(t, inv, "BR-S-1")
+	})
+
+	t.Run("BR-CO-18: wrong VAT breakdown tax sum fires", func(t *testing.T) {
+		inv := minimalValidInvoice()
+		// Breakdown says tax = 10, but totals.tax_amount = 21.
+		inv.VATBreakdown[0].TaxAmount = 10.00
+		assertRuleFires(t, inv, "BR-CO-18")
+	})
+
 	t.Run("BR-K-2: K breakdown with both IDs passes", func(t *testing.T) {
 		inv := minimalValidInvoice()
 		inv.Lines[0].VAT.Category = model.VATIntraCommunity
