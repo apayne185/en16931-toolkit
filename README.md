@@ -120,9 +120,7 @@ Validates against EN 16931 + Spain CIUS rules and returns the Veri\*Factu chain 
 curl -s -X POST http://localhost:8080/v1/invoices/verifactu \
   -H 'Content-Type: application/json' \
   -d '{
-    "invoice": '"$(cat examples/simple_invoice.json)"',
-    "prev_hash": "",
-    "prev_timestamp": ""
+    "invoice": '"$(cat examples/simple_invoice.json)"'
   }' | jq .
 ```
 
