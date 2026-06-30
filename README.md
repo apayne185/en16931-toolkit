@@ -58,7 +58,7 @@ go build -o en16931 ./cmd/en16931
 ### Validation output
 
 ```
-✓  INV-2024-001 passes EN 16931:2017 (51 rules checked)
+✓  INV-2024-001 passes EN 16931:2017 (52 rules checked)
 ```
 
 ```
@@ -290,6 +290,8 @@ See [examples/](examples/) for complete working invoices:
 **XML injection protection.** `text/template` does not auto-escape XML the way `html/template` escapes HTML. All user-supplied string fields in the UBL template pass through `xmlEscape` (backed by `encoding/xml.EscapeText`) so that an invoice number like `<script>` cannot break the output document.
 
 **BR-19 rounding.** The net amount check accumulates allowances and charges in raw float64 and rounds once on the final sum, not after each term. Rounding after each step causes accumulated drift on lines with multiple adjustments and produces false positives.
+
+**PEPPOL BIS Billing 3.0 note.** The rendered UBL passes EN 16931 semantic validation. PEPPOL BIS Billing 3.0 adds a stricter rule (`PEPPOL-EN16931-R003`) requiring `cbc:BuyerReference` to be unconditionally present. If an invoice uses only `order_reference` (which satisfies EN 16931 BR-10), the UBL output will pass this toolkit's validator but will be rejected by a PEPPOL Access Point. Set `buyer_reference` when targeting a PEPPOL network.
 
 **Layered CIUS architecture.** EN 16931 is the baseline; countries layer a national extension (CIUS) on top. The Spain package (`internal/es`) calls `validate.Validate` first, then appends its own rules — exactly the same pattern used in production e-invoicing platforms. Adding a new country means adding a new package without touching the core.
 

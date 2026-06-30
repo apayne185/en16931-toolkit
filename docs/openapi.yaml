@@ -387,7 +387,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AllowanceCharge"
-          description: "BG-21: Document-level charges. Each must have a VAT category and non-negative amount."
+          description: "BG-21: Document-level charges. Each must have a reason (BR-41), a VAT category (BR-38), and a non-negative amount (BR-42)."
         vat_breakdown:
           type: array
           items:
