@@ -1,6 +1,7 @@
 # en16931-toolkit
 
 [![CI](https://github.com/apayne185/en16931-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/apayne185/en16931-toolkit/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/apayne185/en16931-toolkit)](https://goreportcard.com/report/github.com/apayne185/en16931-toolkit)
 
 A Go toolkit that validates invoices against the EN 16931:2017 European e-invoicing standard, renders them as UBL 2.1 XML, and implements Spain's Veri\*Factu CIUS — all with zero external dependencies.
 
