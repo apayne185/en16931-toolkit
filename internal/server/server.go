@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/apayne185/en16931-toolkit/docs"
 	"github.com/apayne185/en16931-toolkit/internal/es"
 	"github.com/apayne185/en16931-toolkit/internal/model"
 	"github.com/apayne185/en16931-toolkit/internal/ubl"
@@ -27,6 +28,7 @@ func New() http.Handler {
 	mux.HandleFunc("POST /v1/invoices/render", handleRender)
 	mux.HandleFunc("POST /v1/invoices/verifactu", handleVerifactu)
 	mux.HandleFunc("GET /healthz", handleHealth)
+	mux.HandleFunc("GET /openapi.yaml", handleOpenAPISpec)
 	return logging(mux)
 }
 
@@ -204,6 +206,14 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+func handleOpenAPISpec(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(docs.OpenAPISpec); err != nil {
+		slog.Warn("write response failed", "error", err)
+	}
+}
+
 const maxBodyBytes = 1 << 20 // 1 MiB — invoices are never this large
 
 // decodeInvoice reads and decodes a model.Invoice from the request body.
@@ -227,7 +237,7 @@ func decodeInvoice(w http.ResponseWriter, r *http.Request) (*model.Invoice, bool
 func safeFilename(s string) string {
 	return strings.Map(func(r rune) rune {
 		switch r {
-		case '"', '\\', '\r', '\n':
+		case '"', '\\', '\r', '\n', 0:
 			return '_'
 		}
 		return r
@@ -264,4 +274,11 @@ type responseWriter struct {
 func (rw *responseWriter) WriteHeader(status int) {
 	rw.status = status
 	rw.ResponseWriter.WriteHeader(status)
+}
+
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	if rw.status == 0 {
+		rw.status = http.StatusOK
+	}
+	return rw.ResponseWriter.Write(b)
 }

@@ -19,7 +19,7 @@ This toolkit implements the UBL 2.1 binding and the Spanish Veri\*Factu CIUS.
 
 ## Features
 
-- **EN 16931 validation** — 51 BR-\* and BR-CO-\* rules with precise error messages citing the rule code and failing field path
+- **EN 16931 validation** — 52 BR-\* and BR-CO-\* rules with precise error messages citing the rule code and failing field path
 - **UBL 2.1 rendering** — schema-conformant XML you can feed to a PEPPOL access point or an Italian SDI gateway, with full XML injection protection
 - **Spain Veri\*Factu CIUS** — seller NIF/CIF/NIE validation, SHA-256 invoice chain hashing, and AEAT QR verification URL (Real Decreto 1007/2023)
 - **HTTP API** — JSON REST API exposing all three operations
@@ -81,7 +81,7 @@ internal/server/ HTTP API (net/http, stdlib only)
 ### Validation output
 
 ```
-✓  INV-2024-001 passes EN 16931:2017 (51 rules checked)
+✓  INV-2024-001 passes EN 16931:2017 (52 rules checked)
 ```
 
 ```
@@ -143,9 +143,7 @@ Validates against EN 16931 + Spain CIUS rules and returns the Veri\*Factu chain 
 curl -s -X POST http://localhost:8080/v1/invoices/verifactu \
   -H 'Content-Type: application/json' \
   -d '{
-    "invoice": '"$(cat examples/simple_invoice.json)"',
-    "prev_hash": "",
-    "prev_timestamp": ""
+    "invoice": '"$(cat examples/simple_invoice.json)"'
   }' | jq .
 ```
 
@@ -157,6 +155,14 @@ curl -s -X POST http://localhost:8080/v1/invoices/verifactu \
   "timestamp": "01-06-2024 09:00:00",
   "qr_verify_url": "https://www2.agenciatributaria.gob.es/wlpl/TIKE-CONT/ValidarQR?fecha=..."
 }
+```
+
+### `GET /openapi.yaml`
+
+Returns this API's [OpenAPI 3.1 specification](docs/openapi.yaml) as YAML — useful for generating client SDKs or importing into tools like Swagger UI or Postman.
+
+```bash
+curl http://localhost:8080/openapi.yaml
 ```
 
 ### `GET /healthz`
@@ -241,7 +247,7 @@ See [examples/](examples/) for complete working invoices:
 
 ## Implemented EN 16931 business rules
 
-51 of ~120 normative rules are currently implemented.
+52 of ~120 normative rules are currently implemented.
 
 | Code | Rule |
 |------|------|
@@ -266,6 +272,7 @@ See [examples/](examples/) for complete working invoices:
 | BR-36 | Document-level allowance must have a reason |
 | BR-37 | Document-level allowance must have a VAT category code |
 | BR-38 | Document-level charge must have a VAT category code |
+| BR-41 | Document-level charge must have a reason |
 | BR-39 | Document-level allowance amount must not be negative |
 | BR-42 | Document-level charge amount must not be negative |
 | BR-S-1 | Standard-rated lines must have a VAT breakdown entry |
@@ -306,6 +313,8 @@ See [examples/](examples/) for complete working invoices:
 **XML injection protection.** `text/template` does not auto-escape XML the way `html/template` escapes HTML. All user-supplied string fields in the UBL template pass through `xmlEscape` (backed by `encoding/xml.EscapeText`) so that an invoice number like `<script>` cannot break the output document.
 
 **BR-19 rounding.** The net amount check accumulates allowances and charges in raw float64 and rounds once on the final sum, not after each term. Rounding after each step causes accumulated drift on lines with multiple adjustments and produces false positives.
+
+**PEPPOL BIS Billing 3.0 note.** The rendered UBL passes EN 16931 semantic validation. PEPPOL BIS Billing 3.0 adds a stricter rule (`PEPPOL-EN16931-R003`) requiring `cbc:BuyerReference` to be unconditionally present. If an invoice uses only `order_reference` (which satisfies EN 16931 BR-10), the UBL output will pass this toolkit's validator but will be rejected by a PEPPOL Access Point. Set `buyer_reference` when targeting a PEPPOL network.
 
 **Layered CIUS architecture.** EN 16931 is the baseline; countries layer a national extension (CIUS) on top. The Spain package (`internal/es`) calls `validate.Validate` first, then appends its own rules — exactly the same pattern used in production e-invoicing platforms. Adding a new country means adding a new package without touching the core.
 
