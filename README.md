@@ -33,6 +33,28 @@ cd en16931-toolkit
 go build -o en16931 ./cmd/en16931
 ```
 
+Or run the HTTP API in Docker:
+
+```bash
+docker build -t en16931-toolkit .
+docker run -p 8080:8080 en16931-toolkit
+```
+
+The image is a multi-stage build (`golang:1.22-alpine` → `distroless/static-debian12:nonroot`): no shell, no package manager, runs as a non-root user, ~22 MB.
+
+## Architecture
+
+```
+cmd/en16931/     CLI entrypoint (validate/render/verifactu/serve subcommands)
+internal/model/  Invoice data model — the EN 16931 semantic types shared by every package
+internal/validate/  EN 16931 business rules (BR-*, BR-CO-*)
+internal/ubl/    UBL 2.1 XML rendering (embedded template)
+internal/es/     Spain Veri*Factu CIUS — layers on top of internal/validate
+internal/server/ HTTP API (net/http, stdlib only)
+```
+
+`internal/validate` has no dependency on `internal/es`, `internal/ubl`, or `internal/server` — country-specific rules and output formats are built on top of the base validator, not tangled into it. Adding a second country's CIUS (e.g. Italy's SDI) means adding a new package next to `internal/es`, not touching the validator.
+
 ## CLI
 
 ```bash
