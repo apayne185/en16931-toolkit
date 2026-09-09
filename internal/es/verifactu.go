@@ -155,7 +155,7 @@ func mapTypeCode(code model.InvoiceTypeCode) (string, error) {
 		// R2–R5 apply in specific circumstances; R1 is the safe default here.
 		return "R1", nil
 	case model.TypeSelfBilledInvoice:
-		return "F1", nil // self-billed still maps to F1 with a separate flag in the XML
+		return "F1", nil
 	case model.TypePrepaymentInvoice:
 		return "F1", nil
 	default:

@@ -20,8 +20,8 @@ func minimalInvoice() *model.Invoice {
 		Currency:       "EUR",
 		BuyerReference: "PO-1",
 		Seller: model.Party{
-			Name:  "Seller Co",
-			VATID: "ESB12345674",
+			Name:    "Seller Co",
+			VATID:   "ESB12345674",
 			Address: model.Address{Country: "ES"},
 		},
 		Buyer: model.Party{
