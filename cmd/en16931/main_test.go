@@ -30,7 +30,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	binPath = filepath.Join(dir, "en16931")
 	build := exec.Command("go", "build", "-cover", "-o", binPath, ".")
@@ -44,7 +44,7 @@ func TestMain(m *testing.M) {
 		if err != nil {
 			panic(err)
 		}
-		defer os.RemoveAll(coverDir)
+		defer func() { _ = os.RemoveAll(coverDir) }()
 	}
 
 	os.Exit(m.Run())
@@ -305,7 +305,7 @@ func TestServe_StartsAndServesHealthz(t *testing.T) {
 	if err != nil {
 		t.Fatalf("server did not become healthy: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200 from /healthz, got %d", resp.StatusCode)
 	}
