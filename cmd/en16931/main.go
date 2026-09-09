@@ -109,7 +109,7 @@ func mustLoad(path string) *model.Invoice {
 	if err != nil {
 		fatalf("cannot open %s: %v", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var inv model.Invoice
 	dec := json.NewDecoder(f)
@@ -145,7 +145,9 @@ func runRender(inv *model.Invoice, outFile string) {
 	}
 
 	if outFile == "" {
-		os.Stdout.Write(xmlBytes)
+		if _, err := os.Stdout.Write(xmlBytes); err != nil {
+			fatalf("write error: %v", err)
+		}
 		return
 	}
 	if err := os.WriteFile(outFile, xmlBytes, 0o644); err != nil {
