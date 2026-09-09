@@ -29,7 +29,7 @@ func validateIBAN(s string) bool {
 
 	// Remaining characters must be alphanumeric.
 	for _, r := range s[4:] {
-		if !((r >= '0' && r <= '9') || (r >= 'A' && r <= 'Z')) {
+		if (r < '0' || r > '9') && (r < 'A' || r > 'Z') {
 			return false
 		}
 	}

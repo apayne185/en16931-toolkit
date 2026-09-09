@@ -70,7 +70,9 @@ func TestValidate_Valid(t *testing.T) {
 		t.Errorf("expected 200, got %d: %s", rr.Code, rr.Body)
 	}
 	var resp map[string]any
-	json.Unmarshal(rr.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
 	if resp["valid"] != true {
 		t.Errorf("expected valid=true, got %v", resp)
 	}
@@ -89,7 +91,9 @@ func TestValidate_Invalid(t *testing.T) {
 		t.Errorf("expected 422, got %d", rr.Code)
 	}
 	var resp map[string]any
-	json.Unmarshal(rr.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
 	if resp["valid"] != false {
 		t.Errorf("expected valid=false")
 	}
@@ -140,7 +144,9 @@ func TestVerifactu_Valid(t *testing.T) {
 		t.Errorf("expected 200, got %d: %s", rr.Code, rr.Body)
 	}
 	var resp map[string]any
-	json.Unmarshal(rr.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
 	if resp["valid"] != true {
 		t.Errorf("expected valid=true, got %v", resp)
 	}
@@ -180,7 +186,9 @@ func TestVerifactu_SpainValidationFailure(t *testing.T) {
 		t.Errorf("expected 422, got %d: %s", rr.Code, rr.Body)
 	}
 	var resp map[string]any
-	json.Unmarshal(rr.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
 	if resp["valid"] != false {
 		t.Errorf("expected valid=false, got %v", resp)
 	}

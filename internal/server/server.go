@@ -65,8 +65,8 @@ func Listen(addr string) error {
 }
 
 type validationResponse struct {
-	Valid  bool             `json:"valid"`
-	Errors []validationErr  `json:"errors,omitempty"`
+	Valid  bool            `json:"valid"`
+	Errors []validationErr `json:"errors,omitempty"`
 }
 
 type validationErr struct {
@@ -135,7 +135,9 @@ func handleRender(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xml"`, safeFilename(inv.Number)))
 	w.WriteHeader(http.StatusOK)
-	w.Write(xmlBytes)
+	if _, err := w.Write(xmlBytes); err != nil {
+		slog.Warn("write response failed", "error", err)
+	}
 }
 
 type verifactuRequest struct {
@@ -145,12 +147,12 @@ type verifactuRequest struct {
 }
 
 type verifactuResponse struct {
-	Valid         bool            `json:"valid"`
-	Errors        []validationErr `json:"errors,omitempty"`
-	HashType      string          `json:"hash_type,omitempty"`
-	Hash          string          `json:"hash,omitempty"`
-	Timestamp     string          `json:"timestamp,omitempty"`
-	QRVerifyURL   string          `json:"qr_verify_url,omitempty"`
+	Valid       bool            `json:"valid"`
+	Errors      []validationErr `json:"errors,omitempty"`
+	HashType    string          `json:"hash_type,omitempty"`
+	Hash        string          `json:"hash,omitempty"`
+	Timestamp   string          `json:"timestamp,omitempty"`
+	QRVerifyURL string          `json:"qr_verify_url,omitempty"`
 }
 
 // handleVerifactu validates against EN 16931 + Spain CIUS and returns the
@@ -235,7 +237,9 @@ func safeFilename(s string) string {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Warn("encode response failed", "error", err)
+	}
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {

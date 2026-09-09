@@ -16,7 +16,7 @@ func loadFixture(t *testing.T, name string) *model.Invoice {
 	if err != nil {
 		t.Fatalf("open fixture %s: %v", name, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	var inv model.Invoice
 	if err := json.NewDecoder(f).Decode(&inv); err != nil {
 		t.Fatalf("decode fixture %s: %v", name, err)
@@ -40,7 +40,7 @@ func TestValidate_Examples(t *testing.T) {
 			if err != nil {
 				t.Fatalf("open: %v", err)
 			}
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 			var inv model.Invoice
 			if err := json.NewDecoder(f).Decode(&inv); err != nil {
 				t.Fatalf("decode: %v", err)

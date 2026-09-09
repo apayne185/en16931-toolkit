@@ -19,7 +19,8 @@ var rawTemplate string
 
 func xmlEscape(s string) string {
 	var buf strings.Builder
-	xml.EscapeText(&buf, []byte(s))
+	// strings.Builder's Write never returns an error.
+	_ = xml.EscapeText(&buf, []byte(s))
 	return buf.String()
 }
 
