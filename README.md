@@ -311,6 +311,10 @@ See [examples/](examples/) for complete working invoices:
 
 **Amounts as float64.** For a production system you'd want fixed-precision decimal arithmetic (`github.com/shopspring/decimal`). Each arithmetic check uses a 0.005 threshold: since both operands are rounded to two decimal places, the minimum real discrepancy is 0.01 (one cent), and 0.01 > 0.005 is always true — so any genuine one-cent error is caught while float64 representation noise (≪ 0.001) is ignored.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, the checks CI runs, and conventions for adding a business rule or a country CIUS.
+
 ## References
 
 - [EN 16931-1:2017](https://www.cen.eu/work/areas/ICT/eBusiness/Pages/WS-BII.aspx) — Semantic data model
