@@ -69,7 +69,7 @@ func main() {
 		fs.Usage = func() {
 			fmt.Fprintln(os.Stderr, "usage: en16931 render <invoice.json> [-o output.xml]")
 		}
-		_ = fs.Parse(os.Args[2:])
+		_ = fs.Parse(reorderFlags(fs, os.Args[2:]))
 		if fs.NArg() == 0 {
 			fs.Usage()
 			os.Exit(1)
@@ -83,7 +83,7 @@ func main() {
 		fs.Usage = func() {
 			fmt.Fprintln(os.Stderr, "usage: en16931 verifactu <invoice.json> [-prev-hash <hex>] [-prev-timestamp <ts>]")
 		}
-		_ = fs.Parse(os.Args[2:])
+		_ = fs.Parse(reorderFlags(fs, os.Args[2:]))
 		if fs.NArg() == 0 {
 			fs.Usage()
 			os.Exit(1)
@@ -102,6 +102,35 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", os.Args[1], usage)
 		os.Exit(1)
 	}
+}
+
+// reorderFlags rearranges args so that all flags registered on fs (and their
+// values) precede positional arguments, then returns the reordered slice.
+// This lets users write "en16931 render invoice.json -o out.xml" — flags
+// after the positional argument — even though flag.FlagSet.Parse stops
+// consuming flags at the first non-flag argument.
+func reorderFlags(fs *flag.FlagSet, args []string) []string {
+	var flags, positional []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if len(a) < 2 || a[0] != '-' {
+			positional = append(positional, a)
+			continue
+		}
+		name := strings.TrimLeft(a, "-")
+		flags = append(flags, a)
+		if strings.Contains(name, "=") {
+			// "-flag=value" form: self-contained, no lookahead needed.
+			continue
+		}
+		if fs.Lookup(name) != nil && i+1 < len(args) {
+			// Boolean flags don't consume the next token; every flag this
+			// CLI defines is a string flag, so always take the value.
+			i++
+			flags = append(flags, args[i])
+		}
+	}
+	return append(flags, positional...)
 }
 
 func mustLoad(path string) *model.Invoice {
