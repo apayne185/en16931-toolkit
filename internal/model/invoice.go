@@ -55,15 +55,15 @@ const (
 type VATCategoryCode string
 
 const (
-	VATStandardRate    VATCategoryCode = "S"  // Standard rated
-	VATZeroRated       VATCategoryCode = "Z"  // Zero rated
-	VATExempt          VATCategoryCode = "E"  // Exempt from tax
-	VATReverseCharge   VATCategoryCode = "AE" // VAT reverse charge (intra-EU B2B services)
-	VATIntraCommunity  VATCategoryCode = "K"  // EEA intra-community supply of goods
-	VATFreeExport      VATCategoryCode = "G"  // Free export item, VAT not charged
-	VATOutOfScope      VATCategoryCode = "O"  // Outside scope of VAT
-	VATCanaryIslands   VATCategoryCode = "L"  // Canary Islands IGIC
-	VATCeutaMelilla    VATCategoryCode = "M"  // Ceuta/Melilla IPSI
+	VATStandardRate   VATCategoryCode = "S"  // Standard rated
+	VATZeroRated      VATCategoryCode = "Z"  // Zero rated
+	VATExempt         VATCategoryCode = "E"  // Exempt from tax
+	VATReverseCharge  VATCategoryCode = "AE" // VAT reverse charge (intra-EU B2B services)
+	VATIntraCommunity VATCategoryCode = "K"  // EEA intra-community supply of goods
+	VATFreeExport     VATCategoryCode = "G"  // Free export item, VAT not charged
+	VATOutOfScope     VATCategoryCode = "O"  // Outside scope of VAT
+	VATCanaryIslands  VATCategoryCode = "L"  // Canary Islands IGIC
+	VATCeutaMelilla   VATCategoryCode = "M"  // Ceuta/Melilla IPSI
 )
 
 // Invoice is the top-level EN 16931:2017 invoice document.

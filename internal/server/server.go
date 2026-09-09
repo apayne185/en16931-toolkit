@@ -209,7 +209,9 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 func handleOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write(docs.OpenAPISpec)
+	if _, err := w.Write(docs.OpenAPISpec); err != nil {
+		slog.Warn("write response failed", "error", err)
+	}
 }
 
 const maxBodyBytes = 1 << 20 // 1 MiB — invoices are never this large
